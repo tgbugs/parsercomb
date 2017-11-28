@@ -12,7 +12,8 @@ comma = COMP(COMMA)
 cs = JOINT(comma, space)
 
 wsoc = OR(comment, whitespace)
-word = joinstr(MANY1(NOT(space)))
+wsoc1 = OR(comment, whitespace1)
+word = joinstr(MANY1(NOT(whitespace1)))
 
 def make_figalph(v):
     return RETURN(tuple(f'{v[0]}{_}' for _ in v[1]))
@@ -33,7 +34,7 @@ figure_alpha_list = BIND(JOINT(int_, BIND(JOINT(char,
                          make_figalph
                         )
 
-figure = END(int_, OR(cs, wsoc))
+figure = END(int_, OR(cs, newline, comment))
 
 flist_atom = OR(figure_range,  # FIXME bad implementation use lookhead if possible
                 figure_alpha_list,
@@ -44,11 +45,7 @@ figures = BIND(JOINT(flist_atom,
                flatten_alph)
 
 abrev = END(word, space)
-wsocEOF = COMPOSE(wsoc, EOF)
-sbrev = END(word, OR(COMPOSE(wsoc, 
-                             SKIP(COMP('\n'),
-                                  OR(wsocEOF, wsoc))),
-                     wsocEOF))
+sbrev = END(word, OR(newline, comment))
 alabel = joinstr(BIND(JOINT(word,
                             BIND(MANY(JOINT(END(space,
                                                 NOT(flist_atom)),
@@ -62,13 +59,30 @@ slabel = joinstr(BIND(JOINT(word,
                                  flatten1)),
                       flatten))
 
-sec_abrevs = None
-sec_structs = None
+los = RETVAL(LEXEME(COMP('List of Structures')), 's')
+loa = RETVAL(LEXEME(COMP('List of Abbreviations')), 'a')
 
-arec = JOINT(abrev, COMPOSE(space, alabel), COMPOSE(space, figures))
-srec = JOINT(slabel, COMPOSE(space, sbrev))
+arec = LEXEME(JOINT(abrev, COMPOSE(space, alabel), COMPOSE(space, figures)))  # FIXME Ce has no structure name
+srec = LEXEME(JOINT(slabel, COMPOSE(space, sbrev)))
+
+def section_out(v):
+    label, many, last = v
+    out = label, many + (last,)
+    return RETURN(out)
+
+section = BIND(OR(JOINT(los,
+                        MANY1(END(srec,
+                                  NOT(OR(loa, EOF)))),
+                        srec),
+                  JOINT(loa,
+                        MANY1(END(arec,
+                                  NOT(OR(los, EOF)))),
+                        arec)),
+               section_out)
+sections = JOINT(section, section)
 
 def main():
+    from desc.prof import profile_me
     tests = dict(
     atest4_0 = 'FAKE fake fake fake 117a    ; testing',
     atest4_1 = 'CeCv central cervical nucleus 117a,b',
@@ -77,9 +91,10 @@ def main():
     atest4_4 = 'mfba medial forebrain bundle, ‘a’ component 9-21, 81-85',
 
 
-    stest4_0 = 'ventromedial hypothalamic nucleus, central part VMHC  ; testing\n  ',
-    stest4_1 = 'ventromedial hypothalamic nucleus, central part VMHC',
-    stest4_2 = 'olfactory ventricle (olfactory part of lateral ventricle) OV'    ,
+    stest4_0 = 'ventromedial hypothalamic nucleus, central part VMHC\nnext a  ; testing\n  ',
+    stest4_1 = 'ventromedial hypothalamic nucleus, central part VMHC  ; testing\n  ',
+    stest4_2 = 'ventromedial hypothalamic nucleus, central part VMHC',
+    stest4_3 = 'olfactory ventricle (olfactory part of lateral ventricle) OV'    ,
 
     stest6_1 = '4th and 5th cerebellar lobules 4/5Cb',
     atest6_1 = '9a,bCb 9th cerebellar lobule, a and b 140-159, 165',
@@ -87,7 +102,6 @@ def main():
 
     ats = [(v, arec(v)) for k, v in tests.items() if k.startswith('a')]
     sts = [(v, srec(v)) for k, v in tests.items() if k.startswith('s')]
-    embed()
 
 if __name__ == '__main__':
     main()
