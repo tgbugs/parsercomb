@@ -11,23 +11,36 @@ comma = COMP(COMMA)
 
 cs = JOINT(comma, space)
 
+word = joinstr(MANY1(NOT(OR(space, EOF))))  # NOTE if a MANY1->NOT meets an EOF it will error
+
 figure_range = JOINT(int_, COMPOSE(hyphen_minus, int_), join=False)
-figure = int_
+figure = END(int_, OR(cs, EOF))
 flist_atom = OR(figure_range, figure)  # FIXME bad implementation use lookhead if possible
-figures = JOINT(flist_atom,
-                OR(MANY1(COMPOSE(cs,
-                                 flist_atom)),
-                   EOF))
-abrev = END(MANY1(NOT(space)), space)
-sbrev = END(MANY1(NOT(space)), EOF)
-alabel = MANY1(END(MANY1(NOT(space)), figures))
-slabel = END(MANY1(JOINT(MANY1(NOT(space)), space)), sbrev)  # rerererecursion!
+figures = BIND(END(JOINT(flist_atom,
+                         MANY1(COMPOSE(cs, flist_atom))),
+                   EOF),
+               flatten)
+abrev = END(word, space)
+sbrev = END(joinstr(MANY1(NOT(OR(space, EOF)))),
+            EOF)
+alabel = joinstr(BIND(JOINT(word,
+                            BIND(MANY(JOINT(END(space,
+                                                NOT(flist_atom)),
+                                            word)),
+                                 flatten1)),
+                      flatten))
+slabel = joinstr(BIND(JOINT(word,
+                            BIND(MANY(JOINT(END(space,
+                                                NOT(sbrev)),
+                                            word)),
+                                 flatten1)),
+                      flatten))
 
 sec_abrevs = None
 sec_structs = None
 
-arec = JOINT(abrev, alabel, figures)
-srec = JOINT(slabel, abrev)
+arec = JOINT(abrev, COMPOSE(space, alabel), COMPOSE(space, figures))
+srec = JOINT(slabel, COMPOSE(space, sbrev))
 
 def main():
     tests = dict(
@@ -43,8 +56,8 @@ def main():
     atest6_1 = '9a,bCb 9th cerebellar lobule, a and b 140-159, 165',
     )
 
-    ats = [v for k, v in tests.items() if k.startswith('a')]
-    sts = [v for k, v in tests.items() if k.startswith('s')]
+    ats = [(v, arec(v)) for k, v in tests.items() if k.startswith('a')]
+    sts = [(v, srec(v)) for k, v in tests.items() if k.startswith('s')]
     embed()
 
 if __name__ == '__main__':
