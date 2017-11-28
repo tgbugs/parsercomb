@@ -82,7 +82,6 @@ section = BIND(OR(JOINT(los,
 sections = JOINT(section, section)
 
 def main():
-    from desc.prof import profile_me
     tests = dict(
     atest4_0 = 'FAKE fake fake fake 117a    ; testing',
     atest4_1 = 'CeCv central cervical nucleus 117a,b',
