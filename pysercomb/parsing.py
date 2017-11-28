@@ -37,7 +37,11 @@ def TIMES(func, min_, max_=None, fail=True):
                 p = rest
         if max_ is not None:
             for i in range(max_ - min_):
-                success, v, rest = func(p)
+                try:
+                    success, v, rest = func(p)
+                except EOFError:  # NOT(anything) matches EOF
+                    print('caught EOF in TIMES', True, matches, p)
+                    return True, tuple(matches), p
                 if not success:
                     return True, tuple(matches), p
                 else:
@@ -120,7 +124,7 @@ def NOT(func):
             if p:
                 return True, p[0], p[1:]
             else:
-                raise SyntaxError(f'Unhandled EOF received by NOT in {func}.\n'
+                raise EOFError(f'Unhandled EOF received by NOT in {func} {func.__name__}.\n'
                                   'You may have a MANY->NOT case.')
                 print('WAT')
                 return True, None, p
@@ -131,7 +135,10 @@ def END(func1, func2):
         success, v, rest = func1(p)
         if not success:
             return success, v, rest
-        success2, v2, rest2 = func2(rest)
+        try:
+            success2, v2, rest2 = func2(rest)
+        except EOFError:  # NOT will match EOF
+            return success, v, rest
         if success2:
             return success, v, rest
         else:
@@ -187,10 +194,12 @@ def COMP(val):
     if lv == 1:
         def comp1_(p):
             return  comp1(p, val)
+        comp1_.__name__ = 'COMP_' + val
         return comp1_
     else:
         def comp_(p):
             return comp(p, val, lv)
+        comp_.__name__ = 'COMP_' + val
         return comp_
 
 def EOF(p):
@@ -340,13 +349,14 @@ num = OR(scientific_notation, float_, int_, num_word)  # float first so that int
 # racket
 def exp(p):
     return _exp(p)
-whitespace_atom = OR(COMP(' '), COMP('\t'), COMP('\n'))
+newline = COMP('\n')
+whitespace_atom = OR(COMP(' '), COMP('\t'), newline)
+#whitespace_atom = OR(_whitespace_atom, END(_whitespace_atom, EOF))
 whitespace = MANY(whitespace_atom)
 whitespace1 = MANY1(whitespace_atom)  # FIXME this is broken to negation? (extremely slow)
 comment = COMPOSE(whitespace,
                   COMPOSE(COMP(';'),
-                          SKIP(MANY(NOT(COMP('\n'))),
-                               COMP('\n'))))
+                          MANY(NOT(newline))))  # leave the newline intact
 def LEXEME(func):
     return COMPOSE(whitespace, SKIP(func, OR(comment, whitespace)))
 open_paren = LEXEME(COMP('('))
@@ -391,7 +401,8 @@ tag_docs = MANY1(tag_doc)
 # units
 def get_quoted_list(filename):
     with open(os.path.expanduser('~/ni/protocols/rkt/units/' + filename), 'rt') as f:
-        success, value, rest = racket_doc(f.read())
+        src = f.read()
+        success, value, rest = racket_doc(src)
     if not success:
         raise SyntaxError(f'Something is wrong in {filename}. Parse output:\n{value}\n\n{rest}')
     out = {}
