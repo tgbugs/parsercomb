@@ -13,13 +13,38 @@ cs = JOINT(comma, space)
 
 word = joinstr(MANY1(NOT(OR(space, EOF))))  # NOTE if a MANY1->NOT meets an EOF it will error
 
+def make_figalph(v):
+    return RETURN(tuple(f'{v[0]}{_}' for _ in v[1]))
+
+def flatten_alph(v):
+    print(v)
+    out = tuple(i for e in v
+                for i in (e
+                          if (type(e) == tuple and
+                              (any(type(_) == str or type(_) == tuple for _ in e) or
+                               len(e) <= 1))
+                          else ((e,) if e else e)))
+    print(out)
+    return RETURN(out)
+
 figure_range = JOINT(int_, COMPOSE(hyphen_minus, int_), join=False)
+figure_alpha_list = BIND(JOINT(int_, BIND(JOINT(char,
+                                                MANY(COMPOSE(comma, char))),
+                                          flatten)),
+                         make_figalph
+                        )
+
 figure = END(int_, OR(cs, EOF))
-flist_atom = OR(figure_range, figure)  # FIXME bad implementation use lookhead if possible
+
+flist_atom = OR(figure_range,  # FIXME bad implementation use lookhead if possible
+                figure_alpha_list,
+                figure)
+
 figures = BIND(END(JOINT(flist_atom,
-                         MANY1(COMPOSE(cs, flist_atom))),
+                         MANY(COMPOSE(cs, flist_atom))),
                    EOF),
-               flatten)
+               flatten_alph)
+
 abrev = END(word, space)
 sbrev = END(joinstr(MANY1(NOT(OR(space, EOF)))),
             EOF)
@@ -44,6 +69,7 @@ srec = JOINT(slabel, COMPOSE(space, sbrev))
 
 def main():
     tests = dict(
+    atest4_0 = 'FAKE fake fake fake 117a',
     atest4_1 = 'CeCv central cervical nucleus 117a,b',
     atest4_2 = 'Cg1 cingulate cortex, area 1 7-24, 79-82',
     atest4_3 = 'AA anterior amygdaloid area 25, 84-87, 93-95',
