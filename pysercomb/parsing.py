@@ -120,6 +120,8 @@ def NOT(func):
             if p:
                 return True, p[0], p[1:]
             else:
+                raise SyntaxError(f'Unhandled EOF received by NOT in {func}.\n'
+                                  'You may have a MANY->NOT case.')
                 print('WAT')
                 return True, None, p
     return not_
