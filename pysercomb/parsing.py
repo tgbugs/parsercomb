@@ -358,7 +358,7 @@ comment = COMPOSE(whitespace,
                   COMPOSE(COMP(';'),
                           MANY(NOT(newline))))  # leave the newline intact
 def LEXEME(func):
-    return COMPOSE(whitespace, SKIP(func, OR(comment, whitespace)))
+    return COMPOSE(OR(SKIP(comment, whitespace), whitespace), SKIP(func, OR(comment, whitespace)))
 open_paren = LEXEME(COMP('('))
 close_paren = LEXEME(COMP(')'))
 quote_symbol = COMP("'")
