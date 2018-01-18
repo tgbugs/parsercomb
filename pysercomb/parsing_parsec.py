@@ -21,7 +21,7 @@ def OR(parser, *parsers):
 DEGREES_UNDERLINE = b'\xc2\xba'.decode()  # º sometimes pdfs misencode these
 DEGREES_FEAR = b'\xe2\x97\xa6' # this thing is scary and I have no id what it is or why it wont change color ◦
 def get_quoted_list(filename):
-    with open(os.path.expanduser('~/ni/protocols/rkt/units/' + filename), 'rt') as f:
+    with open(os.path.expanduser('~/ni/dev/protocols/rkt/units/' + filename), 'rt') as f:
         lines = [_.split(';')[0].strip() for _ in f.readlines()][3:-1]
     return [line.strip("'").strip('(').rstrip(')').split(' . ') for line in lines if line and '.' in line]
 

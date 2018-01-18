@@ -400,14 +400,14 @@ tag_docs = MANY1(tag_doc)
 
 # units
 def get_quoted_list(filename):
-    with open(os.path.expanduser('~/ni/protocols/rkt/units/' + filename), 'rt') as f:
+    with open(os.path.expanduser('~/ni/dev/protocols/rkt/units/' + filename), 'rt') as f:
         src = f.read()
         success, value, rest = racket_doc(src)
     if not success:
         raise SyntaxError(f'Something is wrong in {filename}. Parse output:\n{value}\n\n{rest}')
     out = {}
     for expression in value:
-        print(expression)
+        #print(expression)
         if expression[0] == 'define':
             name = expression[1].replace('-','_')
             out[name] = expression[2]
@@ -579,7 +579,7 @@ def main():
     print(tag_doc('(tag-doc \'butts "wat wat wat")\n'))
     with open(os.path.expanduser('~/git/protc/protc-tags.rkt'), 'rt') as f:
         text = f.read()
-    with open(os.path.expanduser('~/ni/protocols/rkt/units/si-units-extras.rkt'), 'rt') as f:
+    with open(os.path.expanduser('~/ni/dev/protocols/rkt/units/si-units-extras.rkt'), 'rt') as f:
         text2 = f.read()
     td = tag_docs(text)
     e = racket_doc(text2)
@@ -604,7 +604,7 @@ def main():
     should_fail = ('~~~~1',
                    "(pH 7.3",
                   )
-    with open(os.path.expanduser('~/ni/protocols/rkt/test-params.rkt'), 'rt') as f:
+    with open(os.path.expanduser('~/ni/dev/protocols/rkt/test-params.rkt'), 'rt') as f:
         success, v, rest = racket_doc(f.read())#[l.strip().strip('"') for l in f.readlines()][3:-1]
     param_test_strings = [s for e in v  if e[0] == 'define' and e[1] == 'param-test-strings' for s in e[2]]
     test_all = []
