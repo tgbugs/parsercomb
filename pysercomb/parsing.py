@@ -394,7 +394,8 @@ racket_doc = COMPOSE(AT_MOST_ONE(lang_line), MANY(exp))
 tag_doc = SKIP(JOINT(COMPOSE(open_paren,
                              COMP('tag-doc')),
                      quote,
-                     string),
+                     quote,
+                     string,),
                close_paren)
 tag_docs = MANY1(tag_doc)
 
