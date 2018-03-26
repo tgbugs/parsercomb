@@ -383,7 +383,7 @@ literal = OR(string, num_literal, cons_pair, NIL)
 atom = joinstr(MANY1(symbol))
 identifier = LEXEME(atom)
 def _quote(p):
-    return COMPOSE(quote_symbol, _exp)(p)
+    return OR(NIL, COMPOSE(quote_symbol, _exp))(p)
 quote = LEXEME(_quote)
 def sexp(p):
     return sexp_inner(p)
