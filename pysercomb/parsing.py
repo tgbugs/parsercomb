@@ -401,7 +401,7 @@ tag_docs = MANY1(tag_doc)
 
 # units
 def get_quoted_list(filename):
-    with open(os.path.expanduser('~/ni/dev/protocols/rkt/units/' + filename), 'rt') as f:
+    with open(os.path.expanduser('~/git/protc/protc-lib/protc/units/' + filename), 'rt') as f:
         src = f.read()
         success, value, rest = racket_doc(src)
     if not success:
