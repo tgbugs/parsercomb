@@ -577,10 +577,10 @@ def main():
     print(quote('\'hello world!'))
     print(quote('\'"hello" world!'))
     print(string('"ARE YOU KIDDING ME \n NO???"'))
-    print(tag_doc('(tag-doc \'butts "wat wat wat")\n'))
+    print(tag_doc('(tag-doc \'tag "a b c")\n'))
     with open(os.path.expanduser('~/git/protc/protc-tags.rkt'), 'rt') as f:
         text = f.read()
-    with open(os.path.expanduser('~/ni/dev/protocols/rkt/units/si-units-extras.rkt'), 'rt') as f:
+    with open(os.path.expanduser('~/git/protc/protc-lib/protc/units/si-units-extras.rkt'), 'rt') as f:
         text2 = f.read()
     td = tag_docs(text)
     e = racket_doc(text2)
