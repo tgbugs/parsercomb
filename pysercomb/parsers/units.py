@@ -81,17 +81,21 @@ approx = RETVAL(COMP('~'), 'approximately')
 
 # units
 def make_unit_parser(units_path):
-    dicts = [get_quoted_list(units_path, _) for _ in ('si-prefixes-data.rkt', 'si-prefixes-exp-data.rkt', 'si-units-data.rkt', 'si-units-extras.rkt', 'units-dimensionless.rkt')]
+    dicts = [get_quoted_list(units_path, _) for _ in ('si-prefixes-data.rkt', 'si-prefixes-exp-data.rkt', 'si-units-data.rkt', 'si-units-extras.rkt', 'units-dimensionless.rkt', 'imperial-units-data.rkt')]
     gs = globals()
     for dict_ in dicts:
         gs.update(dict_)
 
-    _silookup = {k: "'" + v for k, v in units_si + units_extra + tuple([v, v] for k, v in units_si) + tuple([v, v] for k, v in units_extra)}
+    _silookup = {k: "'" + v
+                 for k, v in units_si + units_extra + units_imp +
+                 tuple([v, v] for k, v in units_si) +
+                 tuple([v, v] for k, v in units_extra) +
+                 tuple([v, v] for k, v in units_imp)}
     _siplookup = {k: "'" + v for k, v in prefixes_si}
 
     siprefix = OR(*make_funcs(coln(0, prefixes_si), _siplookup))
-    siunit = OR(*make_funcs(list(coln(0, units_si + units_extra)) + # need both here to avoid collisions in unit_atom slower but worth it?
-                            list(coln(1, units_si + units_extra)), _silookup))
+    siunit = OR(*make_funcs(list(coln(0, units_si + units_extra + units_imp)) + # need both here to avoid collisions in unit_atom slower but worth it?
+                            list(coln(1, units_si + units_extra + units_imp)), _silookup))
 
     DEGREES_UNDERLINE = b'\xc2\xba'.decode()  # º sometimes pdfs misencode these
     DEGREES_FEAR = b'\xe2\x97\xa6' # this thing is scary and I have no id what it is or why it wont change color ◦
@@ -197,11 +201,12 @@ def make_unit_parser(units_path):
 
 
 def main():
-    from desc.prof import profile_me
     from time import time
+    from pathlib import Path
+    from desc.prof import profile_me
     from IPython import embed
 
-    units_path = '~/git/protc/protc-lib/protc/units'
+    units_path = Path('~/git/protc/protc-lib/protc/units').expanduser()
     parameter_expression, quantity, unit, unit_atom = make_unit_parser(units_path)
 
     tests = ('1 daL', "300 mOsm", "0.5 mM", "7 mM", "0.1 Hz.", "-50 pA",
@@ -215,6 +220,7 @@ def main():
              '10 kg * mm^2 / s^2', '10 * 1.1 ^ 30 / 12',
              '120 +- 8 * 10 ^ 6 MR / kg * s2 * 20',
              '1 * 2 * 3 * 4 * 5', '1 + 2 + 3 + 4 + 5',
+             '10lbs', '11 lbs',
             )
     weirds = ("One to 5", "100-Hz", "25 ng/ul)", "34–36°C.",
               '3*10^6 infectious particles/mL',
