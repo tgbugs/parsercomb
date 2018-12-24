@@ -151,7 +151,7 @@ def make_unit_parser(units_path):
     fold_suffix = RETVAL(END(by, noneof('0123456789')), BOX("'fold"))  # NOT(num) required to prevent issue with dimensions
     _suffix_unit = param('unit')(OR(percent, unit_implicit_count_ratio))
     suffix_unit = OR(_suffix_unit, unit)
-    suffix_unit_no_space = param('unit')(OR(EXACTLY_ONE(fold_suffix), C_for_temp, unit_starts_with_dash))  # FIXME this is really bad :/ and breaks dimensions...
+    suffix_unit_no_space = OR(param('unit')(OR(EXACTLY_ONE(fold_suffix), C_for_temp)), unit_starts_with_dash)  # FIXME this is really bad :/ and breaks dimensions...
     suffix_quantity = JOINT(num, OR(suffix_unit_no_space,
                                     COMPOSE(spaces,
                                             AT_MOST_ONE(suffix_unit, fail=False))))  # this catches the num by itself and leaves a blank unit
@@ -225,7 +225,8 @@ def main():
     weirds = ("One to 5", "100-Hz", "25 ng/ul)", "34–36°C.",
               '3*10^6 infectious particles/mL',
               '4.7 +- 0.6 x 10^7 / mm^3',  # FIXME this is ambigious? YES VERY also unit dimensionality...
-              '1,850', '4C', 'three', 'Four', 'P28.5±2 days'
+              '1,850', '4C', 'three', 'Four', 'P28.5±2 days',
+              '12-V', '10-mL',
              )
     should_fail = ('~~~~1',
                    "(pH 7.3",
