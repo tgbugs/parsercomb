@@ -182,6 +182,8 @@ def make_unit_parser(units_path):
                              flatten), RETBOX)
     expression = param('expr')(OR(prefix_expression, infix_expression))  # FIXME this doesn't work if you have prefix -> infix are there cases that can happen?
 
+    boo = param('bool')(BIND(boolean, lambda v: RETBOX('#t') if v else RETBOX('#f')))
+
     #def approximate_thing(thing): return JOINT(EXACTLY_ONE(approx), COMPOSE(spaces, thing), join=False)
 
     def FAILURE(p):
@@ -192,6 +194,7 @@ def make_unit_parser(units_path):
                     dilution_factor,
                     expression,
                     quantity,
+                    boo,
                     FAILURE)
     #approx_comp = approximate_thing(components)
 
@@ -220,7 +223,7 @@ def main():
              '10 kg * mm^2 / s^2', '10 * 1.1 ^ 30 / 12',
              '120 +- 8 * 10 ^ 6 MR / kg * s2 * 20',
              '1 * 2 * 3 * 4 * 5', '1 + 2 + 3 + 4 + 5',
-             '10lbs', '11 lbs',
+             '10lbs', '11 lbs', 'TRUE', 'fAlsE', '#t', '#f'
             )
     weirds = ("One to 5", "100-Hz", "25 ng/ul)", "34–36°C.",
               '3*10^6 infectious particles/mL',

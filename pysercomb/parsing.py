@@ -48,6 +48,7 @@ __all__ = [
     'float_',
     'int_',
     'num',
+    'boolean',
 ]
 
 # combinators
@@ -328,6 +329,16 @@ CROSS = b'\xc3\x97'.decode()
 cross = COMP(CROSS)
 x = COMP('x')
 by = OR(cross, x)
+
+# booleans
+_boollookup = {
+    'true': True,
+    'false': False,
+    '#t': True,
+    '#f': False,}
+bool_word_lower = OR(*make_funcs(_boollookup, _boollookup))
+def bool_word_cap(p): return bool_word_lower(p.lower())
+boolean = OR(bool_word_lower, bool_word_cap)
 
 # number words
 _numlookup = {
