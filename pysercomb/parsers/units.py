@@ -176,10 +176,10 @@ def make_unit_parser(units_path):
                                  flatten),
                             op_order)
     prefix_expression = BIND(BIND(JOINT(prefix_operator,
-                                   COMPOSE(spaces,
-                                           OR(infix_expression,
-                                              quantity))),
-                             flatten), RETBOX)
+                                        BIND(COMPOSE(spaces,
+                                                     OR(infix_expression,
+                                                        quantity)), RETBOX)),
+                                  flatten), RETBOX)
     expression = param('expr')(OR(prefix_expression, infix_expression))  # FIXME this doesn't work if you have prefix -> infix are there cases that can happen?
 
     boo = param('bool')(BIND(boolean, lambda v: RETBOX('#t') if v else RETBOX('#f')))
@@ -223,13 +223,15 @@ def main():
              '10 kg * mm^2 / s^2', '10 * 1.1 ^ 30 / 12',
              '120 +- 8 * 10 ^ 6 MR / kg * s2 * 20',
              '1 * 2 * 3 * 4 * 5', '1 + 2 + 3 + 4 + 5',
-             '10lbs', '11 lbs', 'TRUE', 'fAlsE', '#t', '#f'
+             '<1',
+             '10lbs', '11 lbs',
+             'TRUE', 'fAlsE', '#t', '#f',
             )
     weirds = ("One to 5", "100-Hz", "25 ng/ul)", "34–36°C.",
               '3*10^6 infectious particles/mL',
               '4.7 +- 0.6 x 10^7 / mm^3',  # FIXME this is ambigious? YES VERY also unit dimensionality...
               '1,850', '4C', 'three', 'Four', 'P28.5±2 days',
-              '12-V', '10-mL',
+              '12-V', '10-mL', '+1',
              )
     should_fail = ('~~~~1',
                    "(pH 7.3",
