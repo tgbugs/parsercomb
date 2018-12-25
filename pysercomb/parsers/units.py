@@ -22,6 +22,12 @@ def op_order(return_value):
     order = 'plus-or-minus', 'range', '^', '/', '*', '+', '-'
     associative = '*', '+'
     commutative = '*', '+'
+    def key(subtree):
+        if len(subtree) == 3 and isinstance(subtree[0], str) and subtree[0].startswith('param:'):
+            return 0, subtree[1]  # short sort first
+        else:
+            return 1, len(subtree)
+
     def inner(subtree):
         for op in order[::-1]:
             try:
@@ -30,17 +36,48 @@ def op_order(return_value):
                 rest = subtree[i + 1:]
                 f = inner(front)
                 r = inner(rest)
-                if op in commutative and len(front) >= len(rest):
-                    f, r = r, f
-                if op in associative:
+                print(f, r)
+                if op in commutative:
+                    lf, lr = len(f), len(r)
+                    if lf > lr:
+                        f, r = r, f
+                    elif lf == lr:
+                        fcase = lf == 3 and isinstance(f[0], str) and f[0].startswith('param:')
+                        rcase = lr == 3 and isinstance(r[0], str) and r[0].startswith('param:')
+                        if fcase and rcase:
+                            if r[1] < f[1]:  # reorder commutative operations to be deterministic
+                                f, r = r, f
+                        elif rcase:  # fcase is the default so don't need to handle it
+                            f, r = r, f
+
+                if op in associative:  # assoc -> ok to move parens
                     if f[0] == op and r[0] == op:
-                        return (op, f[1:], r[1:])
+                        val = *f[1:], *r[1:]
+                        if op in commutative:
+                            val = sorted(val, key=key)
                     elif f[0] == op:
-                        return (op, f[1:], r)
+                        if op in commutative:
+                            val = *sorted(f[1:], key=key), r
+                        else:
+                            val = *f[1:], r
                     elif r[0] == op:
-                        return (op, f, r[1:])
-                return (op, f, r)
+                        # this means that the operator on f is also op
+                        # and so if op commutes then we can reorder
+                        if op in commutative:
+                            val = sorted((f, *r[1:]), key=key)
+                        else:
+                            val = f, *r[1:]
+                    else:
+                        print('noop??', f, r)
+                        val = f, r
+                else:
+                    val = f, r
+
+                print('op', op, 'val', val)
+                return (op, *val)
             except ValueError:
+                # can't index because we are at the bottom
+                # FIXME this has ambiguous semantics
                 continue
         return subtree[0]
     lisped = inner(return_value)
@@ -171,14 +208,14 @@ def make_unit_parser(units_path):
     infix_suffix = JOINT(COMPOSE(spaces, infix_operator),
                          COMPOSE(spaces, quantity))
     infix_expression = BIND(BIND(JOINT(quantity,
-                                  BIND(MANY1(infix_suffix),
-                                       flatten1)),
+                                       BIND(MANY1(infix_suffix),
+                                            flatten1)),
                                  flatten),
                             op_order)
     prefix_expression = BIND(BIND(JOINT(prefix_operator,
-                                        BIND(COMPOSE(spaces,
-                                                     OR(infix_expression,
-                                                        quantity)), RETBOX)),
+                                        COMPOSE(spaces,
+                                                OR(infix_expression,
+                                                   BIND(quantity, RETBOX)))),
                                   flatten), RETBOX)
     expression = param('expr')(OR(prefix_expression, infix_expression))  # FIXME this doesn't work if you have prefix -> infix are there cases that can happen?
 
@@ -200,7 +237,10 @@ def make_unit_parser(units_path):
 
     parameter_expression = components  # OR(approx_comp, components)
 
-    return parameter_expression, quantity, unit, unit_atom
+    debug_dict = {'infix_expression': infix_expression,
+                  'prefix_expression': prefix_expression}
+
+    return parameter_expression, quantity, unit, unit_atom, debug_dict
 
 
 def main():
@@ -223,10 +263,12 @@ def main():
              '10 kg * mm^2 / s^2', '10 * 1.1 ^ 30 / 12',
              '120 +- 8 * 10 ^ 6 MR / kg * s2 * 20',
              '1 * 2 * 3 * 4 * 5', '1 + 2 + 3 + 4 + 5',
-             '<1',
              '10lbs', '11 lbs',
              'TRUE', 'fAlsE', '#t', '#f',
             )
+
+    prefix_expr_tests = ('<1', '~3.5 - 6 Mohms',)
+
     weirds = ("One to 5", "100-Hz", "25 ng/ul)", "34–36°C.",
               '3*10^6 infectious particles/mL',
               '4.7 +- 0.6 x 10^7 / mm^3',  # FIXME this is ambigious? YES VERY also unit dimensionality...
@@ -239,7 +281,9 @@ def main():
 
     with open(Path('~/ni/dev/protocols/rkt/test-params.rkt').expanduser().as_posix(), 'rt') as f:
         success, v, rest = racket_doc(f.read())#[l.strip().strip('"') for l in f.readlines()][3:-1]
-    param_test_strings = [s for e in v  if e[0] == 'define' and e[1] == 'param-test-strings' for s in e[2]]
+    param_test_strings = [s for e in v
+                          if e[0] == 'define' and e[1] == 'param-test-strings'
+                          for s in e[2]]
     test_all = []
 
     def timeit():
@@ -264,7 +308,7 @@ def main():
     test_unit_atom = [unit_atom(f) for f in fun]
     test_unit = [unit(f) for f in fun]
     test_quantity = [quantity(t) for t in tests]
-    test_expression = [parameter_expression(t) for t in tests + weirds]
+    test_expression = [parameter_expression(t) for t in tests + prefix_expr_tests + weirds]
     test_expression2 = '\n'.join(sorted((f"'{t+q:<25} -> {parameter_expression(t)[1]}" for t in tests + weirds), key=lambda v: v[25:]))
     print(test_expression2)
     test_fails = [parameter_expression(t) for t in tests]
