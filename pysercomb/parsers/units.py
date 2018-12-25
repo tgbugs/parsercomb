@@ -36,7 +36,6 @@ def op_order(return_value):
                 rest = subtree[i + 1:]
                 f = inner(front)
                 r = inner(rest)
-                print(f, r)
                 if op in commutative:
                     lf, lr = len(f), len(r)
                     if lf > lr:
@@ -68,12 +67,10 @@ def op_order(return_value):
                         else:
                             val = f, *r[1:]
                     else:
-                        print('noop??', f, r)
                         val = f, r
                 else:
                     val = f, r
 
-                print('op', op, 'val', val)
                 return (op, *val)
             except ValueError:
                 # can't index because we are at the bottom
