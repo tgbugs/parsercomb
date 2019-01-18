@@ -306,13 +306,15 @@ def EXACTLY_ONE(func, fail=True): return BIND(TIMES(func, 1, 1, fail), RETUNBOX)
 #def EXACTLY_ONE(func, fail=True): return transform_value(TIMES(func, 1, 1, fail), lambda v: v[0] if v else v)
 
 # I hate the people who felt the need to make different type blocks for this stuff in 1673
+HYPHEN = b'\xe2\x80\x90'.decode()  # Y U DO DIS unicode 2010
 EN_DASH = b'\xe2\x80\x93'.decode()
 MINUS_SIGN = b'\xe2\x88\x92'.decode()  # HAH CAUGHT YOU
 HYPHEN_MINUS = b'\x2d'.decode()  # yes, the thing that most keyboards have
+hyphen = COMP(HYPHEN)
 minus_sign = COMP(MINUS_SIGN)
 en_dash = COMP(EN_DASH)
 hyphen_minus = COMP(HYPHEN_MINUS)
-_dash_thing = OR(hyphen_minus, en_dash, minus_sign)  # THERE ARE TOO MANY AND THEY ALL LOOK THE SAME
+_dash_thing = OR(hyphen_minus, en_dash, minus_sign, hyphen)  # THERE ARE TOO MANY AND THEY ALL LOOK THE SAME
 dash_thing = RETVAL(_dash_thing, HYPHEN_MINUS)
 double_dash_thing = TIMES(dash_thing, 2)
 thing_accepted_as_a_dash = transform_value(OR(double_dash_thing, dash_thing), lambda v: HYPHEN_MINUS)
