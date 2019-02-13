@@ -143,21 +143,21 @@ def make_unit_parser(units_path):
 
     maybe_exponent = AT_MOST_ONE(exponent)
 
+    shorthand = BIND(BIND(JOINT(SKIP(COMPOSE(spaces, unit_atom),
+                                     COMPOSE(spaces, maybe_exponent)),
+                                int_),
+                          lambda v: RETBOX(('^', *v))),
+                     lambda v: RETURN(('*', *v)))
+    unit_thing = OR(shorthand, unit_atom)
     unit_suffix = OR(JOINT(COMPOSE(spaces, unit_op),
-                        COMPOSE(spaces, unit_atom)),
-                     JOINT(COMPOSE(spaces, maybe_exponent),
-                           int_))
-    unit_expression = param('unit-expr')(BIND(BIND(JOINT(unit_atom,
-                                                               BIND(MANY1(unit_suffix),
-                                                                    flatten1)),
-                                                         flatten),
-                                                    op_order))
-    unit_shorthand = param('unit-expr')(BIND(JOINT(unit_atom,
-                                                   COMPOSE(spaces,
-                                                           BIND(JOINT(unit_atom, int_),
-                                                                lambda v: RETURN(('^', *v))))),
-                                             lambda v: RETBOX(('*', *v))))
-    unit = OR(unit_expression, unit_shorthand, unit_atom)
+                           COMPOSE(spaces, unit_thing)),
+                     COMPOSE(spaces, shorthand))
+    unit_expression = param('unit-expr')(BIND(BIND(JOINT(unit_thing,
+                                                         BIND(MANY1(unit_suffix),
+                                                              flatten1)),
+                                                   flatten),
+                                              op_order))
+    unit = OR(unit_expression, unit_atom)
     unit_starts_with_dash = COMPOSE(dash_thing, unit)  # derp
     unit_implicit_count_ratio = BIND(JOINT(LEXEME(division),
                                            unit,
@@ -235,7 +235,8 @@ def make_unit_parser(units_path):
     parameter_expression = components  # OR(approx_comp, components)
 
     debug_dict = {'infix_expression': infix_expression,
-                  'prefix_expression': prefix_expression}
+                  'prefix_expression': prefix_expression,
+                 }
 
     return parameter_expression, quantity, unit, unit_atom, debug_dict
 
@@ -247,7 +248,7 @@ def main():
     from IPython import embed
 
     units_path = Path('~/git/protc/protc-lib/protc/units').expanduser()
-    parameter_expression, quantity, unit, unit_atom = make_unit_parser(units_path)
+    parameter_expression, quantity, unit, unit_atom, debug_dict = make_unit_parser(units_path)
 
     tests = ('1 daL', "300 mOsm", "0.5 mM", "7 mM", "0.1 Hz.", "-50 pA",
              "200–500mm", "0.3%–0.5%", "1:500", "4%", "10 U/ml",
@@ -262,6 +263,8 @@ def main():
              '1 * 2 * 3 * 4 * 5', '1 + 2 + 3 + 4 + 5',
              '10lbs', '11 lbs',
              'TRUE', 'fAlsE', '#t', '#f',
+             '10 \u00B5L', '10 \u03BCL',  # micro issues
+             '1 s-1', '1 h-1', '1 mg kg-1 h-1',
             )
 
     prefix_expr_tests = ('<1', '~3.5 - 6 Mohms',)
