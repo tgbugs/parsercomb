@@ -308,7 +308,7 @@ def EXACTLY_ONE(func, fail=True): return BIND(TIMES(func, 1, 1, fail), RETUNBOX)
 # I hate the people who felt the need to make different type blocks for this stuff in 1673
 HYPHEN = b'\xe2\x80\x90'.decode()  # Y U DO DIS unicode 2010
 EN_DASH = b'\xe2\x80\x93'.decode()
-MINUS_SIGN = b'\xe2\x88\x92'.decode()  # HAH CAUGHT YOU
+MINUS_SIGN = b'\xe2\x88\x92'.decode()  # HAH CAUGHT YOU aka u2212
 HYPHEN_MINUS = b'\x2d'.decode()  # yes, the thing that most keyboards have
 hyphen = COMP(HYPHEN)
 minus_sign = COMP(MINUS_SIGN)
@@ -320,7 +320,9 @@ double_dash_thing = TIMES(dash_thing, 2)
 thing_accepted_as_a_dash = transform_value(OR(double_dash_thing, dash_thing), lambda v: HYPHEN_MINUS)
 
 # basic tokens and operators
-space = COMP(' ')
+thin_space = COMP('\u2009')  # sigh what bloodyminded program would ever produce these!!??!
+non_breaking_space = COMP('\xa0')
+space = OR(COMP(' '), non_breaking_space, thin_space)
 spaces = MANY(space)
 spaces1 = MANY1(space)
 colon = COMP(':')
