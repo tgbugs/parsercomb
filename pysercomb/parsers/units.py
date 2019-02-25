@@ -242,10 +242,12 @@ def make_unit_parser(units_path):
 
 
 def main():
+    import pprint
     from time import time
     from pathlib import Path
     from desc.prof import profile_me
     from IPython import embed
+    from pysercomb.pyr.units import ProtcParameter
 
     units_path = Path('~/git/protc/protc-lib/protc/units').expanduser()
     parameter_expression, quantity, unit, unit_atom, debug_dict = make_unit_parser(units_path)
@@ -286,6 +288,7 @@ def main():
                           for s in e[2]]
     test_all = []
 
+    pid = []
     def timeit():
         for t in param_test_strings:
             success = False
@@ -297,11 +300,16 @@ def main():
                     t2 = t2[1:]
             if not success:
                 rest = t
+            else:
+                pid.append(ProtcParameter(v))
+
             test_all.append((success, v, rest))
     start = time()
     timeit()
     stop = time()
     print('BAD TIME', stop - start)
+    print_issues = {i:h for i, h in enumerate(pid)} 
+    # pprint.pprint(print_issues)  # this works correctly
 
     q = "'"
     fun = [t.split(' ')[-1] for t in tests][:5]
