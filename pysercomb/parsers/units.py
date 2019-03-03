@@ -121,15 +121,18 @@ def make_unit_parser(units_path):
         gs.update(dict_)
 
     _silookup = {k: "'" + v
-                 for k, v in units_si + units_extra + units_imp +
+                 for k, v in units_si + units_extra +
                  tuple([v, v] for k, v in units_si) +
-                 tuple([v, v] for k, v in units_extra) +
-                 tuple([v, v] for k, v in units_imp)}
+                 tuple([v, v] for k, v in units_extra)}
+    _implookup = {k: "'" + v  # imperial separate because they don't support prefixes
+                  for k, v in units_imp +
+                  tuple([v, v] for k, v in units_imp)}
     _siplookup = {k: "'" + v for k, v in prefixes_si}
 
     siprefix = OR(*make_funcs(coln(0, prefixes_si), _siplookup))
-    siunit = OR(*make_funcs(list(coln(0, units_si + units_extra + units_imp)) + # need both here to avoid collisions in unit_atom slower but worth it?
-                            list(coln(1, units_si + units_extra + units_imp)), _silookup))
+    siunit = OR(*make_funcs(list(coln(0, units_si + units_extra)) + # need both here to avoid collisions in unit_atom slower but worth it?
+                            list(coln(1, units_si + units_extra)), _silookup))
+    impunit = OR(*make_funcs(list(coln(0, units_imp)) + list(coln(1, units_imp)), _implookup))
 
     DEGREES_UNDERLINE = b'\xc2\xba'.decode()  # º sometimes pdfs misencode these
     DEGREES_FEAR = b'\xe2\x97\xa6' # this thing is scary and I have no id what it is or why it wont change color ◦
@@ -138,7 +141,8 @@ def make_unit_parser(units_path):
     temp_for_biology = JOINT(num, C_for_temp, join=False)
 
     unit_atom = param('unit')(BIND(OR(JOINT(siprefix, siunit, join=False),
-                                      BIND(siunit, RETBOX)),
+                                      BIND(siunit, RETBOX),
+                                      BIND(impunit, RETBOX)),
                                    FLOP))
 
     maybe_exponent = AT_MOST_ONE(exponent)

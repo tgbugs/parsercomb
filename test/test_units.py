@@ -3,14 +3,22 @@ from pathlib import Path
 from protcur.analysis import __script_folder__ as pasf
 from pysercomb.parsers import units 
 
-parameter_expression, *_, debug_dict = units.make_unit_parser(Path(pasf,
-                                                                   '../../protc-lib/protc/units'))
+(parameter_expression, quantity, unit, *_,
+ debug_dict) = units.make_unit_parser(Path(pasf, '../../protc-lib/protc/units'))
+
 # evil
 _gs = globals()
 _gs.update(debug_dict)
 
 
-class TestUnits(unittest.TestCase):
+class TestUnit(unittest.TestCase):
+    def test_no_imperial_prefix(self):
+        """ make sure we don't parse min -> milli inches """
+        assert unit('min') == (True, ('param:unit', "'minutes"), ''), 'min did not parse to minutes'
+        assert unit('in') == (True, ('param:unit', "'inches"), ''), 'inches did not parse to inches'
+
+
+class TestExpr(unittest.TestCase):
     def test_prefix_infix_expr(self):
         text = '~1 - 3 mm'
         out = prefix_expression(text)
