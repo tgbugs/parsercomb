@@ -141,8 +141,8 @@ def make_unit_parser(units_path):
     temp_for_biology = JOINT(num, C_for_temp, join=False)
 
     unit_atom = param('unit')(BIND(OR(JOINT(siprefix, siunit, join=False),
-                                      BIND(siunit, RETBOX),
-                                      BIND(impunit, RETBOX)),
+                                      BIND(impunit, RETBOX),  # FIXME R RCF collision
+                                      BIND(siunit, RETBOX)),  # merge just units?
                                    FLOP))
 
     maybe_exponent = AT_MOST_ONE(exponent)

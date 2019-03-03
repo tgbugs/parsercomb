@@ -15,7 +15,11 @@ class TestUnit(unittest.TestCase):
     def test_no_imperial_prefix(self):
         """ make sure we don't parse min -> milli inches """
         assert unit('min') == (True, ('param:unit', "'minutes"), ''), 'min did not parse to minutes'
-        assert unit('in') == (True, ('param:unit', "'inches"), ''), 'inches did not parse to inches'
+        assert unit('in') == (True, ('param:unit', "'inches"), ''), 'in did not parse to inches'
+
+    def test_rcf_ohms(self):
+        assert unit('R') == (True, ('param:unit', "'ohms"), ''), 'R did not parse to ohms'
+        assert unit('RCF') == (True, ('param:unit', "'relative-centrifugal-force"), ''), 'RCF did not parse to relative-centrifugal-force'
 
 
 class TestExpr(unittest.TestCase):
