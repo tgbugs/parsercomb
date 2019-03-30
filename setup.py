@@ -22,7 +22,7 @@ setup(name='pysercomb',
           'Programming Language :: Python :: 3.7',
       ],
       keywords=('python parsing parser combinator scientific '
-                'units parsec protc',
+                'units parsec protc'),
       packages=[
           'pysercomb',
           'pysercomb.parsers',
