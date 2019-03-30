@@ -20,6 +20,11 @@ before_install:
   - popd
 
 install:
+  - pushd "${TRAVIS_BUILD_DIR}/../"
+  - pushd protc/protcur
+  - pip install --no-deps --editable .  # just need as a pointer to protc units data
+  - popd
+  - popd
   - pip install --upgrade pytest pytest-cov
   - pip install coverage coveralls && export HAS_COVERALLS=1
   - pip install pipenv
