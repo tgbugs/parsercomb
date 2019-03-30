@@ -14,6 +14,11 @@ branches:
 python:
   - 3.6
 
+before_install:
+  - pushd "${TRAVIS_BUILD_DIR}/../"
+  - git clone --depth=1 https://github.com/tgbugs/protc.git
+  - popd
+
 install:
   - pip install --upgrade pytest pytest-cov
   - pip install coverage coveralls && export HAS_COVERALLS=1
