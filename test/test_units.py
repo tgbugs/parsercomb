@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from protcur.analysis import __script_folder__ as pasf
+from protcur.config import __script_folder__ as pasf
 from pysercomb.parsers import units 
 
 (parameter_expression, quantity, unit, *_,
