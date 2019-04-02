@@ -18,8 +18,8 @@ install:
   - pip install --upgrade pytest pytest-cov
   - pip install coverage coveralls && export HAS_COVERALLS=1
   - pip install pipenv
+  - pip install --no-deps --editable "git+https://github.com/tgbugs/protc.git#egg=protcur&subdirectory=protcur"
   - pipenv install --system --skip-lock --deploy
-  - pipenv run pip install --no-deps --editable "git+https://github.com/tgbugs/protc.git#egg=protcur&subdirectory=protcur"
 
 script:
   - PYTHONWARNINGS=ignore pipenv run pytest --verbose --cov=pysercomb
