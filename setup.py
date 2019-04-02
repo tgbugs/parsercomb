@@ -1,12 +1,10 @@
-import os
-from pathlib import Path
 from setuptools import setup
 from pysercomb import __version__
 
 with open('README.md', 'rt') as f:
     long_description = f.read()
 
-tests_require = ['pytest', 'pytest-cov']
+tests_require = ['pytest', 'pytest-runner']
 setup(name='pysercomb',
       version=__version__,
       description='parser combinator library and assorted parsers',
