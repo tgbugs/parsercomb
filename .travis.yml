@@ -19,7 +19,7 @@ install:
   - pip install coverage coveralls && export HAS_COVERALLS=1
   - pip install pipenv
   - pipenv install --system --skip-lock --deploy
-  - pipenv run pip install --no-deps --editable "git+https://github.com/tgbugs/protc.git@reorg#egg=protcur&subdirectory=protcur"
+  - pipenv run pip install --no-deps --editable "git+https://github.com/tgbugs/protc.git#egg=protcur&subdirectory=protcur"
 
 script:
   - PYTHONWARNINGS=ignore pipenv run pytest --verbose --cov=pysercomb
