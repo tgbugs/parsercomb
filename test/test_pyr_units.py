@@ -18,7 +18,7 @@ class TestTextPP(unittest.TestCase):
                     if evil_white_dot in text:
                         bads.append(('', ProtcParameter(ir), ir, text))
                     else:
-                        print(text)
+                        #print(text)
                         pass
             except BaseException as e:
                 bads.append((e, ProtcParameter(ir), ir, ''))
