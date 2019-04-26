@@ -94,7 +94,8 @@ def param(prefix_name):
 
 
 # basic tokens and operators
-plus_or_minus_symbol = COMP('±')  # NOTE range and +- are interconvertable...
+_plus_or_minus = '±'
+plus_or_minus_symbol = COMP(_plus_or_minus)  # NOTE range and +- are interconvertable...
 plus_or_minus_pair = COMP('+-')  # yes that is an b'\x2d'
 plus_over_minus = COMP('+/-')
 plus_or_minus = transform_value(OR(plus_or_minus_symbol, plus_or_minus_pair, plus_over_minus), lambda v: 'plus-or-minus')
@@ -120,6 +121,12 @@ def get_unit_dicts(units_path):
              'si-units-extras.rkt',
              'units-dimensionless.rkt',
              'imperial-units-data.rkt')]
+
+
+DEGREES_UNDERLINE = b'\xc2\xba'.decode()  # º sometimes pdfs misencode these
+DEGREES_FEAR = b'\xe2\x97\xa6' # this thing is scary and I have no id what it is or why it wont change color ◦
+
+
 # units
 def make_unit_parser(units_path):
     dicts = get_unit_dicts(units_path)
@@ -141,8 +148,6 @@ def make_unit_parser(units_path):
                             list(coln(1, units_si + units_extra)), _silookup))
     impunit = OR(*make_funcs(list(coln(0, units_imp)) + list(coln(1, units_imp)), _implookup))
 
-    DEGREES_UNDERLINE = b'\xc2\xba'.decode()  # º sometimes pdfs misencode these
-    DEGREES_FEAR = b'\xe2\x97\xa6' # this thing is scary and I have no id what it is or why it wont change color ◦
     _C_for_temp = COMP('C')
     C_for_temp = RETVAL(_C_for_temp, BOX(_silookup['degrees-celcius']))
     temp_for_biology = JOINT(num, C_for_temp, join=False)
@@ -252,16 +257,7 @@ def make_unit_parser(units_path):
     return parameter_expression, quantity, unit, unit_atom, debug_dict
 
 
-def main():
-    import pprint
-    from time import time
-    from pathlib import Path
-    from desc.prof import profile_me
-    from IPython import embed
-    from pysercomb.pyr.units import ProtcParameter
-
-    units_path = Path('~/git/protc/protc-lib/protc/units').expanduser()
-    parameter_expression, quantity, unit, unit_atom, debug_dict = make_unit_parser(units_path)
+def parse_for_tests(parameter_expression=None):
 
     tests = ('1 daL', "300 mOsm", "0.5 mM", "7 mM", "0.1 Hz.", "-50 pA",
              "200–500mm", "0.3%–0.5%", "1:500", "4%", "10 U/ml",
@@ -292,11 +288,37 @@ def main():
                    "(pH 7.3",
                   )
 
+    from pathlib import Path
     with open(Path('~/ni/dev/protocols/rkt/test-params.rkt').expanduser().as_posix(), 'rt') as f:
-        success, v, rest = racket_doc(f.read())#[l.strip().strip('"') for l in f.readlines()][3:-1]
-    param_test_strings = [s for e in v
-                          if e[0] == 'define' and e[1] == 'param-test-strings'
-                          for s in e[2]]
+        success, v, rest = racket_doc(f.read())
+
+    param_test_strings = tuple(s for e in v
+                               if e[0] == 'define' and e[1] == 'param-test-strings'
+                               for s in e[2])
+
+    _all = tests + prefix_expr_tests + weirds + should_fail + param_test_strings
+    if parameter_expression:
+        parsed = [parameter_expression(t)[1] for t in _all]
+    else:
+        parsed = None
+
+    return tests, prefix_expr_tests, weirds, should_fail, param_test_strings, _all, parsed
+
+def main():
+    import pprint
+    from time import time
+    from pathlib import Path
+    from desc.prof import profile_me
+    from IPython import embed
+    from pysercomb.pyr.units import ProtcParameter
+
+    units_path = Path('~/git/protc/protc-lib/protc/units').expanduser()
+    (parameter_expression, quantity, unit, unit_atom,
+     debug_dict) = make_unit_parser(units_path)
+
+    (tests, prefix_expr_tests, weirds, should_fail, param_test_strings,
+     parsed) = parse_for_tests()
+
     test_all = []
 
     pid = []
@@ -328,7 +350,8 @@ def main():
     test_unit = [unit(f) for f in fun]
     test_quantity = [quantity(t) for t in tests]
     test_expression = [parameter_expression(t) for t in tests + prefix_expr_tests + weirds]
-    test_expression2 = '\n'.join(sorted((f"'{t+q:<25} -> {parameter_expression(t)[1]}" for t in tests + weirds), key=lambda v: v[25:]))
+    test_expression2 = '\n'.join(sorted((f"'{t+q:<25} -> {parameter_expression(t)[1]}"
+                                         for t in tests + weirds), key=lambda v: v[25:]))
     print(test_expression2)
     test_fails = [parameter_expression(t) for t in tests]
     embed()

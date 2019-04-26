@@ -1,14 +1,5 @@
 import unittest
-from pathlib import Path
-from protcur.config import __script_folder__ as pasf
-from pysercomb.parsers import units 
-
-(parameter_expression, quantity, unit, *_,
- debug_dict) = units.make_unit_parser(Path(pasf, '../../protc-lib/protc/units'))
-
-# evil
-_gs = globals()
-_gs.update(debug_dict)
+from .common import *
 
 
 class TestUnit(unittest.TestCase):

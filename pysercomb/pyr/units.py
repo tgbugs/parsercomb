@@ -2,13 +2,13 @@
 import pprint
 
 from pathlib import Path
-from pysercomb.parsers.units import get_unit_dicts
+from pysercomb.parsers.units import get_unit_dicts, _plus_or_minus
 from protcur.config import __script_folder__ as pasf
 
 
 def chain(*tups):
     for t in tups:
-        yield from t
+        yield from reversed(t)  # reversed because the piority ordering is inverted
 
 units_path = Path(pasf, '../../protc-lib/protc/units')
 dicts = get_unit_dicts(units_path)
@@ -99,8 +99,7 @@ class ProtcParameter:
 
     @property
     def for_text(self):
-        tup = self._tuple
-        return TextPP(self)()
+        return TextPP(self._tuple)()
 
 
 class MacroDecorator:
@@ -130,12 +129,23 @@ macro = MacroDecorator()
 
 @macro.has_macros
 class TextPP:
-    def __init__(self, pp):
-        self.pp = pp
-        self.tup = pp._tuple
+    _renames = {
+        '+': 'plus',
+        '-': 'minus',
+        '*': 'multiplication',  # FIXME unit vs normal implies macro
+        '/': 'division',
+        '^': 'exp',
+        '<': 'less_than',
+        '>': 'greater_than',
+    }
+    def __init__(self, tup):
+        self.tup = tup
 
     def name_to_python(self, first):
-        return first.split(':', 1)[-1]
+        if first in self._renames:
+            return self._renames[first]
+
+        return first.split(':', 1)[-1].replace('-', '_')
 
     def __call__(self):
         return self.eval(self.tup)
@@ -153,7 +163,7 @@ class TextPP:
         first, *rest = tup
         pyfirst = self.name_to_python(first)
         function_or_macro = getattr(self, pyfirst)
-        if function_or_macro in self._macros:
+        if pyfirst in self._macros:
             return function_or_macro(*rest)
 
         if isinstance(rest, list) or isinstance(rest, tuple):
@@ -168,7 +178,14 @@ class TextPP:
     def range(self, start, stop):
         return f'{start}-{stop}'
 
+    @macro  # oops, sometime unit expressions are hidden in units :x
     def unit(self, unit, prefix=None):
+        if unit[0] == '/':  # FIXME broken parser output
+            return self.eval(unit)
+
+        unit = self.eval(unit)
+        if prefix is not None:
+            prefix = self.eval(prefix)
         full = ('weeks', 'days', 'months', 'years')
         unquoted_unit = unit[1:]
         if prefix is None and unquoted_unit in full:
@@ -190,7 +207,14 @@ class TextPP:
         return unit_dict[unquoted_unit]
 
     def prefix_unit(self, unit):
-        return self.unit(*unit)
+        return self.unit(unit)
+
+    def unit_expr(self, expression):  # TODO probably a macro
+        if ' * ' in expression:
+            # FIXME ... would prefer to detect ahead of time
+            expression = expression.replace(' * ', '*')
+
+        return expression
 
     #@macro(True, False)  # TODO specify which values can be evaluated
     @macro
@@ -205,7 +229,63 @@ class TextPP:
         else:
             return value + unit_value
 
+    def parse_failure(self, *args):
+        return ''  # TODO
+
+    def plus(self, *operands):
+        sep = ' + '
+        return sep.join(operands)
+
+    def minus(self, left, right):
+        return f'{left} - {right}'
+
+    def multiplication(self, *operands):
+        sep = ' * '  # '*' for unit?
+        return sep.join(operands)
+
+    def division(self, numerator, denominator):
+        if denominator.startswith(' ') and denominator.endswith('s'):
+            # days hours etc
+            denominator = denominator[1:-1]
+
+        return f'{numerator}/{denominator}'
         
+    def exp(self, left, right):
+        return f'{left}^{right}'
+
+    def approximately(self, expression):
+        return f'~{expression}'
+
+    def plus_or_minus(self, base, error):
+        return f'{base}{_plus_or_minus}{error}'
+
+    def dilution(self, left, right):
+        return f'{left}:{right}'
+
+    def dimensions(self, *quants):
+        # TODO reduce multiple units ?? it 1mm x 1mm x 1mm -> 1x1x1mm
+        return ' x '.join(quants)
+
+    def bool(self, value):
+        return 'true' if value == '#t' else 'false'
+
+    def _than(self, symbol, left, right):
+        s = symbol
+        if not right:
+            return f'{s} {left}'
+        else:
+            if len(right) == 1:
+                right, = right
+                return f'{left} {s} {right}'
+            else:
+                return f'({s} {left} ' + ' '.join(right) + ')'
+
+    def greater_than(self, left, *right):
+        self._than('>', left, right)
+
+    def less_than(self, left, *right):
+        self._than('<', left, right)
+
 def _pprint_operation(self, object, stream, indent, allowance, context, level):
     #value = object.format_value(indent)  # how the heck does this work?
     value = object.__repr__(indent)  # how the heck does this work?
