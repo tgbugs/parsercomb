@@ -20,8 +20,15 @@ for dict_ in dicts:
 unit_dict = {unit:abbrev for abbrev, unit in
              chain(units_si,
                    units_extra,
+                   units_extra_prefix,
                    units_dimensionless,
+                   units_dimensionless_prefix,
                    units_imp,)}
+
+# don't actually need this because its in the ast
+#prefix_units = set(unit for abbrev, unit in
+                   #chain(units_extra_prefix,
+                         #units_dimensionless_prefix))
 
 prefix_dict = {prefix:abbrev for abbrev, prefix in prefixes_si}
 
@@ -96,11 +103,36 @@ class ProtcParameter:
         return TextPP(self)()
 
 
+class MacroDecorator:
+    """ define functions in order to get order! """
+    def __init__(self):
+        self.macros = tuple()
+
+    def has_macros(self, cls):
+        if not hasattr(cls, '_macros'):
+            cls._macros = self.macros
+        else:
+            cls._macros += self.macros
+
+        return cls
+
+    def __call__(self, function):
+        if function.__name__ not in self.macros:
+            self.macros += function.__name__,
+        else:
+            raise ValueError(f'Duplicate function name {function.__name__}')
+
+        return function
+
+
+macro = MacroDecorator()
+
+
+@macro.has_macros
 class TextPP:
     def __init__(self, pp):
         self.pp = pp
         self.tup = pp._tuple
-
 
     def name_to_python(self, first):
         return first.split(':', 1)[-1]
@@ -120,25 +152,31 @@ class TextPP:
 
         first, *rest = tup
         pyfirst = self.name_to_python(first)
-        print(first, pyfirst, rest)
+        function_or_macro = getattr(self, pyfirst)
+        if function_or_macro in self._macros:
+            return function_or_macro(*rest)
+
         if isinstance(rest, list) or isinstance(rest, tuple):
             value = [self.eval(r) for r in rest]
-        return getattr(self, pyfirst)(*value)  # apply is * woo
+
+        return function_or_macro(*value)  # apply is * woo
 
     def expr(self, tup):
         return tup
         #return self.eval(tup)
 
     def range(self, start, stop):
-        #start, stop = self.eval(tup)
-        #f'{start}-{stop}'
-        #start, stop = tup
         return f'{start}-{stop}'
-        #'-'.join((self.eval(start), self.eval(stop)))
 
     def unit(self, unit, prefix=None):
+        full = ('weeks', 'days', 'months', 'years')
+        unquoted_unit = unit[1:]
+        if prefix is None and unquoted_unit in full:
+            return ' ' + unquoted_unit
+
         p = self._prefix(prefix)
-        u = self._unit(unit)
+        u = self._unit(unquoted_unit)
+
         return f'{p}{u}'
 
     def _prefix(self, prefix):
@@ -148,13 +186,24 @@ class TextPP:
         else:
             return ''
 
-    def _unit(self, unit):
-        unit = unit[1:]
-        return unit_dict[unit]
+    def _unit(self, unquoted_unit):
+        return unit_dict[unquoted_unit]
 
+    def prefix_unit(self, unit):
+        return self.unit(*unit)
+
+    #@macro(True, False)  # TODO specify which values can be evaluated
+    @macro
     def quantity(self, value, unit):
-        #unit_value = self.eval(unit)  # FIXME eval should be smarter than this ...
-        return f'{value}{unit}'
+        """ FIXME this prefix_unit issue reveals that this should
+            really be prefix-quantity so that it doesn't have to
+            be a macro that looks for a prefix-unit """
+        value = self.eval(value)
+        unit_value = self.eval(unit)
+        if unit and unit[0] == 'param:prefix-unit':
+            return unit_value + value
+        else:
+            return value + unit_value
 
         
 def _pprint_operation(self, object, stream, indent, allowance, context, level):
