@@ -112,10 +112,17 @@ gte = COMP('>=')
 comparison = OR(lte, gte, lt, gt)
 approx = RETVAL(COMP('~'), 'approximately')
 
-
+def get_unit_dicts(units_path):
+    return [get_quoted_list(units_path, _) for _ in
+            ('si-prefixes-data.rkt',
+             'si-prefixes-exp-data.rkt',
+             'si-units-data.rkt',
+             'si-units-extras.rkt',
+             'units-dimensionless.rkt',
+             'imperial-units-data.rkt')]
 # units
 def make_unit_parser(units_path):
-    dicts = [get_quoted_list(units_path, _) for _ in ('si-prefixes-data.rkt', 'si-prefixes-exp-data.rkt', 'si-units-data.rkt', 'si-units-extras.rkt', 'units-dimensionless.rkt', 'imperial-units-data.rkt')]
+    dicts = get_unit_dicts(units_path)
     gs = globals()
     for dict_ in dicts:
         gs.update(dict_)

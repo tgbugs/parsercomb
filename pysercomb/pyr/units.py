@@ -1,6 +1,30 @@
 """ Python class representation for the output of the units parser. """
 import pprint
 
+from pathlib import Path
+from pysercomb.parsers.units import get_unit_dicts
+from protcur.config import __script_folder__ as pasf
+
+
+def chain(*tups):
+    for t in tups:
+        yield from t
+
+units_path = Path(pasf, '../../protc-lib/protc/units')
+dicts = get_unit_dicts(units_path)
+gs = globals()
+for dict_ in dicts:
+    gs.update(dict_)
+
+
+unit_dict = {unit:abbrev for abbrev, unit in
+             chain(units_si,
+                   units_extra,
+                   units_dimensionless,
+                   units_imp,)}
+
+prefix_dict = {prefix:abbrev for abbrev, prefix in prefixes_si}
+
 
 class ProtcParameter:
     format_nl =  '*', '/', 'range', 'plus-or-minus', 'param:dimensions'
@@ -65,8 +89,74 @@ class ProtcParameter:
         cname = self.__class__.__name__
         _tuple = self.format_value(len(cname) + 1 + indent) 
         return cname + f'({_tuple})'
-        
 
+    @property
+    def for_text(self):
+        tup = self._tuple
+        return TextPP(self)()
+
+
+class TextPP:
+    def __init__(self, pp):
+        self.pp = pp
+        self.tup = pp._tuple
+
+
+    def name_to_python(self, first):
+        return first.split(':', 1)[-1]
+
+    def __call__(self):
+        return self.eval(self.tup)
+
+    def eval(self, thing):
+        if isinstance(thing, tuple) or isinstance(thing, list):
+            # tuple unpacking produces lists because generators
+            # have unkown lenght
+            tup = thing
+            if not tup:
+                return ''  # ah nil
+        else:
+            return str(thing)
+
+        first, *rest = tup
+        pyfirst = self.name_to_python(first)
+        print(first, pyfirst, rest)
+        if isinstance(rest, list) or isinstance(rest, tuple):
+            value = [self.eval(r) for r in rest]
+        return getattr(self, pyfirst)(*value)  # apply is * woo
+
+    def expr(self, tup):
+        return tup
+        #return self.eval(tup)
+
+    def range(self, start, stop):
+        #start, stop = self.eval(tup)
+        #f'{start}-{stop}'
+        #start, stop = tup
+        return f'{start}-{stop}'
+        #'-'.join((self.eval(start), self.eval(stop)))
+
+    def unit(self, unit, prefix=None):
+        p = self._prefix(prefix)
+        u = self._unit(unit)
+        return f'{p}{u}'
+
+    def _prefix(self, prefix):
+        if prefix:
+            prefix = prefix[1:]
+            return prefix_dict[prefix]
+        else:
+            return ''
+
+    def _unit(self, unit):
+        unit = unit[1:]
+        return unit_dict[unit]
+
+    def quantity(self, value, unit):
+        #unit_value = self.eval(unit)  # FIXME eval should be smarter than this ...
+        return f'{value}{unit}'
+
+        
 def _pprint_operation(self, object, stream, indent, allowance, context, level):
     #value = object.format_value(indent)  # how the heck does this work?
     value = object.__repr__(indent)  # how the heck does this work?
