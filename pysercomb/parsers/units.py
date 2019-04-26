@@ -128,8 +128,12 @@ DEGREES_FEAR = b'\xe2\x97\xa6' # this thing is scary and I have no id what it is
 
 
 # units
-def make_unit_parser(units_path):
-    dicts = get_unit_dicts(units_path)
+def make_unit_parser(units_path=None, dicts=None):
+    if units_path is None and dicts is None:
+        raise TypeError('must have units_path or dicts')
+    if dicts is None:
+        dicts = get_unit_dicts(units_path)
+
     gs = globals()
     for dict_ in dicts:
         gs.update(dict_)

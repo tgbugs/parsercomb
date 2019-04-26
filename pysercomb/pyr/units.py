@@ -2,7 +2,7 @@
 import pprint
 
 from pathlib import Path
-from pysercomb.parsers.units import get_unit_dicts, _plus_or_minus
+from pysercomb.parsers.units import get_unit_dicts, _plus_or_minus, make_unit_parser
 from protcur.config import __script_folder__ as pasf
 
 
@@ -10,32 +10,43 @@ def chain(*tups):
     for t in tups:
         yield from reversed(t)  # reversed because the piority ordering is inverted
 
-units_path = Path(pasf, '../../protc-lib/protc/units')
-dicts = get_unit_dicts(units_path)
-gs = globals()
-for dict_ in dicts:
-    gs.update(dict_)
 
+class UnitsHelper:
 
-unit_dict = {unit:abbrev for abbrev, unit in
-             chain(units_si,
-                   units_extra,
-                   units_extra_prefix,
-                   units_dimensionless,
-                   units_dimensionless_prefix,
-                   units_imp,)}
+    @classmethod
+    def setup(cls):
+        units_path = Path(pasf, '../../protc-lib/protc/units')
+        dicts = get_unit_dicts(units_path)
 
-# don't actually need this because its in the ast
-#prefix_units = set(unit for abbrev, unit in
-                   #chain(units_extra_prefix,
-                         #units_dimensionless_prefix))
+        (parameter_expression, quantity, unit, *_,
+         debug_dict) = make_unit_parser(dicts=dicts)
 
-prefix_dict = {prefix:abbrev for abbrev, prefix in prefixes_si}
+        cls._parameter_expression = staticmethod(parameter_expression)
+
+        gs = globals()
+        for dict_ in dicts:
+            gs.update(dict_)
+
+        cls.unit_dict = {unit:abbrev for abbrev, unit in
+                          chain(units_si,
+                                units_extra,
+                                units_extra_prefix,
+                                units_dimensionless,
+                                units_dimensionless_prefix,
+                                units_imp,)}
+
+        # don't actually need this because its in the ast
+        #prefix_units = set(unit for abbrev, unit in
+                        #chain(units_extra_prefix,
+                                #units_dimensionless_prefix))
+
+        cls.prefix_dict = {prefix:abbrev for abbrev, prefix in prefixes_si}
 
 
 class ProtcParameter:
     format_nl =  '*', '/', 'range', 'plus-or-minus', 'param:dimensions'
     format_nl_long =  '^'
+
     def __init__(self, tuple_repr):
         self._tuple = tuple_repr
 
@@ -102,6 +113,13 @@ class ProtcParameter:
         return TextPP(self._tuple)()
 
 
+class ProtcParameterParser(UnitsHelper, ProtcParameter):
+
+    def __init__(self, value):
+        success, ast, rest = self._parameter_expression(value)
+        super().__init__(ast)
+
+
 class MacroDecorator:
     """ define functions in order to get order! """
     def __init__(self):
@@ -128,7 +146,7 @@ macro = MacroDecorator()
 
 
 @macro.has_macros
-class TextPP:
+class TextPP(UnitsHelper):
     _renames = {
         '+': 'plus',
         '-': 'minus',
@@ -199,12 +217,12 @@ class TextPP:
     def _prefix(self, prefix):
         if prefix:
             prefix = prefix[1:]
-            return prefix_dict[prefix]
+            return self.prefix_dict[prefix]
         else:
             return ''
 
     def _unit(self, unquoted_unit):
-        return unit_dict[unquoted_unit]
+        return self.unit_dict[unquoted_unit]
 
     def prefix_unit(self, unit):
         return self.unit(unit)
@@ -285,6 +303,10 @@ class TextPP:
 
     def less_than(self, left, *right):
         self._than('<', left, right)
+
+
+UnitsHelper.setup()
+
 
 def _pprint_operation(self, object, stream, indent, allowance, context, level):
     #value = object.format_value(indent)  # how the heck does this work?

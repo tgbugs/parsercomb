@@ -18,10 +18,9 @@ class TestTextPP(unittest.TestCase):
                     if evil_white_dot in text:
                         bads.append(('', ProtcParameter(ir), ir, text))
                     else:
-                        #print(text)
                         pass
             except BaseException as e:
-                bads.append((e, ProtcParameter(ir), ir, ''))
+                bads.append((repr(e), ProtcParameter(ir), ir, ''))
 
         assert not bads, '\n'.join([f'{e}\n{pp}\n{ir}\n{text}' for e, pp, ir, text in bads])
 
@@ -42,7 +41,3 @@ class TestTextPP(unittest.TestCase):
 
         join = '\n===============================================\n'
         assert not bads, join.join([f'{a}\n{b}' for a, b in bads])
-
-    def test_prefix_unit(self):
-        pass
-        
