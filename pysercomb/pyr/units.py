@@ -243,9 +243,9 @@ class TextPP(UnitsHelper):
         value = self.eval(value)
         unit_value = self.eval(unit)
         if unit and unit[0] == 'param:prefix-unit':
-            return unit_value + value
+            return unit_value + ' ' + value  # FIXME hack
         else:
-            return value + unit_value
+            return value + ' ' + unit_value  # FIXME hack
 
     def parse_failure(self, *args):
         return ''  # TODO
