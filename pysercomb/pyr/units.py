@@ -1,6 +1,7 @@
 """ Python class representation for the output of the units parser. """
 import pprint
 
+from enum import Enum
 from pathlib import Path
 from pysercomb.parsers.units import get_unit_dicts, _plus_or_minus, make_unit_parser
 from protcur.config import __script_folder__ as pasf
@@ -109,8 +110,12 @@ class ProtcParameter:
         return cname + f'({_tuple})'
 
     @property
+    def for_triples(self):
+        return ParamForTriple(self._tuple)()
+
+    @property
     def for_text(self):
-        return TextPP(self._tuple)()
+        return Param(self._tuple)()
 
 
 class ProtcParameterParser(UnitsHelper, ProtcParameter):
@@ -118,6 +123,11 @@ class ProtcParameterParser(UnitsHelper, ProtcParameter):
     def __init__(self, value):
         success, ast, rest = self._parameter_expression(value)
         super().__init__(ast)
+
+
+class mode(Enum):
+    FAIL = 1
+    WARN = 2
 
 
 class MacroDecorator:
@@ -143,10 +153,12 @@ class MacroDecorator:
 
 
 macro = MacroDecorator()
-
-
 @macro.has_macros
-class TextPP(UnitsHelper):
+class Interpreter:
+
+    class _config:  # FIXME ... bad way to do this
+        failure_mode = mode.WARN
+        
     _renames = {
         '+': 'plus',
         '-': 'minus',
@@ -156,30 +168,33 @@ class TextPP(UnitsHelper):
         '<': 'less_than',
         '>': 'greater_than',
     }
-    def __init__(self, tup):
-        self.tup = tup
 
-    def name_to_python(self, first):
-        if first in self._renames:
-            return self._renames[first]
+    def __init__(self, sexp, environment=None):
+        self.sexp = sexp
+        self.environment = environment
 
-        return first.split(':', 1)[-1].replace('-', '_')
+    def lisp_to_python(self, lisp_identifier):
+        if lisp_identifier in self._renames:
+            return self._renames[lisp_identifier]
+
+        return lisp_identifier.split(':', 1)[-1].replace('-', '_')
 
     def __call__(self):
-        return self.eval(self.tup)
+        return self.eval(self.sexp)
 
-    def eval(self, thing):
-        if isinstance(thing, tuple) or isinstance(thing, list):
+
+    def eval(self, expression):
+        if isinstance(expression, tuple) or isinstance(expression, list):
             # tuple unpacking produces lists because generators
             # have unkown lenght
-            tup = thing
+            tup = expression
             if not tup:
                 return ''  # ah nil
         else:
-            return str(thing)
+            return str(expression)
 
         first, *rest = tup
-        pyfirst = self.name_to_python(first)
+        pyfirst = self.lisp_to_python(first)
         function_or_macro = getattr(self, pyfirst)
         if pyfirst in self._macros:
             return function_or_macro(*rest)
@@ -189,12 +204,28 @@ class TextPP(UnitsHelper):
 
         return function_or_macro(*value)  # apply is * woo
 
-    def expr(self, tup):
-        return tup
-        #return self.eval(tup)
 
-    def range(self, start, stop):
-        return f'{start}-{stop}'
+class TextOut:
+    pass
+
+
+macro = MacroDecorator()
+@macro.has_macros
+class Param(UnitsHelper, TextOut, Interpreter):
+    """ definitions for the param: namespace """
+
+    def parse_failure(self, *args):
+        return ''  # TODO
+
+    def expr(self, sexp):
+        return sexp
+
+    def unit_expr(self, expression):  # TODO probably a macro
+        if ' * ' in expression:
+            # FIXME ... would prefer to detect ahead of time
+            expression = expression.replace(' * ', '*')
+
+        return expression
 
     @macro  # oops, sometime unit expressions are hidden in units :x
     def unit(self, unit, prefix=None):
@@ -227,13 +258,6 @@ class TextPP(UnitsHelper):
     def prefix_unit(self, unit):
         return self.unit(unit)
 
-    def unit_expr(self, expression):  # TODO probably a macro
-        if ' * ' in expression:
-            # FIXME ... would prefer to detect ahead of time
-            expression = expression.replace(' * ', '*')
-
-        return expression
-
     #@macro(True, False)  # TODO specify which values can be evaluated
     @macro
     def quantity(self, value, unit):
@@ -243,12 +267,9 @@ class TextPP(UnitsHelper):
         value = self.eval(value)
         unit_value = self.eval(unit)
         if unit and unit[0] == 'param:prefix-unit':
-            return unit_value + ' ' + value  # FIXME hack
+            return unit_value + value  # FIXME hack
         else:
-            return value + ' ' + unit_value  # FIXME hack
-
-    def parse_failure(self, *args):
-        return ''  # TODO
+            return value + unit_value  # FIXME hack
 
     def plus(self, *operands):
         sep = ' + '
@@ -274,8 +295,18 @@ class TextPP(UnitsHelper):
     def approximately(self, expression):
         return f'~{expression}'
 
-    def plus_or_minus(self, base, error):
+    def plus_or_minus(self, base, error=None):
+        if error is None:
+            if self._config.failure_mode == mode.FAIL:
+                raise TypeError(f'error is a required argument for plus_or_minus '
+                                'someone is misusing the notation!')
+
+            return 
+
         return f'{base}{_plus_or_minus}{error}'
+
+    def range(self, start, stop):
+        return f'{start}-{stop}'
 
     def dilution(self, left, right):
         return f'{left}:{right}'
@@ -303,6 +334,57 @@ class TextPP(UnitsHelper):
 
     def less_than(self, left, *right):
         self._than('<', left, right)
+
+
+
+macro = MacroDecorator()
+@macro.has_macros
+class ParamForTriple(Param):
+    @macro
+    def quantity(self, value, unit):
+        """ FIXME this prefix_unit issue reveals that this should
+            really be prefix-quantity so that it doesn't have to
+            be a macro that looks for a prefix-unit """
+        value = self.eval(value)
+        unit_value = self.eval(unit)
+        if unit and unit[0] == 'param:prefix-unit':
+            return unit_value + ' ' + value  # FIXME hack
+        else:
+            return value + ' ' + unit_value  # FIXME hack
+
+
+macro = MacroDecorator()
+@macro.has_macros
+class Protc(Interpreter):
+    """ definitions for the protc: namespace """
+
+    def black_box(self, args):
+        pass
+    def black_box_component(self, args):
+        pass
+    def input(self, args):
+        pass
+    def output(self, args):
+        pass
+    def aspect(self, args):
+        pass
+    def parameter(self, args):
+        pass
+    def invariant(self, args):
+        pass
+    def implied_input(self, args):
+        pass
+    def implied_output(self, args):
+        pass
+    def implied_aspect(self, args):
+        pass
+    def measure(self, args):
+        pass
+    def result(self, args):
+        pass
+
+    def term(self, args):
+        pass
 
 
 UnitsHelper.setup()

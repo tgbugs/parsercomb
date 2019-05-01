@@ -1,17 +1,17 @@
 import unittest
 from pysercomb.parsers.units import DEGREES_FEAR
-from pysercomb.pyr.units import TextPP, ProtcParameter
+from pysercomb.pyr.units import Param, ProtcParameter
 from .common import *
 
 evil_white_dot = DEGREES_FEAR.decode()
 
-class TestTextPP(unittest.TestCase):
+class TestParam(unittest.TestCase):
     def test_all(self):
         bads = []
         roundtrip = []
         for ir in parsed:
             try:
-                text = TextPP(ir)()
+                text = Param(ir)()
                 if text:
                     new_ir = parameter_expression(text)
                     roundtrip.append((ir, new_ir))
@@ -29,7 +29,7 @@ class TestTextPP(unittest.TestCase):
         roundtrip = []
         for ir in parsed:
             try:
-                text = TextPP(ir)()
+                text = Param(ir)()
                 if text:
                     _, new_ir, _ = parameter_expression(text)
                     roundtrip.append((ir, new_ir))

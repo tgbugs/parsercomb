@@ -6,8 +6,13 @@ class TestForms(unittest.TestCase):
     def test_time_vs_dilution(self):
         assert parameter_expression('1:1000') == (True, ('param:dilution', 1, 1000), ''), 'dilution failed'
         assert (parameter_expression('00:00:01')
-                == (True, ('param:quantity', 1,
-                           ('param:unit', "'seconds")), '')), 'duration failed'
+                == (True, ('param:quantity', 1, ('param:unit', "'seconds")), '')), 'duration failed'
+        assert (parameter_expression('00:01:01')
+                == (True, ('param:quantity', 61, ('param:unit', "'seconds")), '')), 'duration failed'
+        assert (parameter_expression('01:01:01')
+                == (True, ('param:quantity', 3661, ('param:unit', "'seconds")), '')), 'duration failed'
+        assert (parameter_expression('1:99:01')
+                == (True, ('param:quantity', 9541, ('param:unit', "'seconds")), '')), 'duration failed'
 
 
 class TestUnit(unittest.TestCase):
