@@ -21,6 +21,7 @@ __all__ = [
     'NOT',
     'OR',
     'RETURN',
+    'RETURNBOX',
     'RETVAL',
     'RETBOX',
     'SKIP',
@@ -261,7 +262,7 @@ def BOX(v):
 def RETBOX(v):
     return RETURN((v,))
 
-def RETUNBOX(v):
+def RETURNBOX(v):
     if v:
         v, = v
     return RETURN(v)
@@ -299,10 +300,10 @@ def joinstr(func):
 def STRINGIFY(func):
     return transform_value(func, lambda v: '"' + str(v).replace('"', '\\"') + '"')
 
-def AT_MOST_ONE(func, fail=True): return BIND(TIMES(func, 0, 1, fail), RETUNBOX)
+def AT_MOST_ONE(func, fail=True): return BIND(TIMES(func, 0, 1, fail), RETURNBOX)
 #def AT_MOST_ONE(func, fail=True): return transform_value(TIMES(func, 0, 1, fail), lambda v: v[0] if v else v)
 
-def EXACTLY_ONE(func, fail=True): return BIND(TIMES(func, 1, 1, fail), RETUNBOX)
+def EXACTLY_ONE(func, fail=True): return BIND(TIMES(func, 1, 1, fail), RETURNBOX)
 #def EXACTLY_ONE(func, fail=True): return transform_value(TIMES(func, 1, 1, fail), lambda v: v[0] if v else v)
 
 # I hate the people who felt the need to make different type blocks for this stuff in 1673

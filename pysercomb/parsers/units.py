@@ -126,6 +126,9 @@ def get_unit_dicts(units_path):
 DEGREES_UNDERLINE = b'\xc2\xba'.decode()  # º sometimes pdfs misencode these
 DEGREES_FEAR = b'\xe2\x97\xa6' # this thing is scary and I have no id what it is or why it wont change color ◦
 
+def hms(h, m, s):
+    """ hours minutes seconds to seconds """
+    return h * 60 * 60 + m * 60 + s
 
 # units
 def make_unit_parser(units_path=None, dicts=None):
@@ -211,6 +214,8 @@ def make_unit_parser(units_path=None, dicts=None):
                                             AT_MOST_ONE(suffix_unit, fail=False))))  # this catches the num by itself and leaves a blank unit
     quantity = param('quantity')(OR(prefix_quantity, suffix_quantity))
 
+    _hmsret = lambda v: param('quantity')(JOINT(RETURN(hms(*v)), param('unit')(RETURN(("'seconds",)))))
+    duration_hms = BIND(JOINT(SKIP(int_, colon), SKIP(int_, colon), int_, join=False), _hmsret)
     dilution_factor = param('dilution')(JOINT(SKIP(int_, colon), int_, join=False))
     sq = COMPOSE(spaces, quantity)
     sby = COMPOSE(spaces, by)
@@ -245,6 +250,7 @@ def make_unit_parser(units_path=None, dicts=None):
 
     # TODO objective specifications...
     components = OR(dimensions,
+                    duration_hms,  # must come first otherwise dilution will always match first
                     dilution_factor,
                     expression,
                     quantity,

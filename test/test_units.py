@@ -2,6 +2,14 @@ import unittest
 from .common import *
 
 
+class TestForms(unittest.TestCase):
+    def test_time_vs_dilution(self):
+        assert parameter_expression('1:1000') == (True, ('param:dilution', 1, 1000), ''), 'dilution failed'
+        assert (parameter_expression('00:00:01')
+                == (True, ('param:quantity', 1,
+                           ('param:unit', "'seconds")), '')), 'duration failed'
+
+
 class TestUnit(unittest.TestCase):
     def test_no_imperial_prefix(self):
         """ make sure we don't parse min -> milli inches """
