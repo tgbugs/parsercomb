@@ -1,6 +1,6 @@
 """ Python class representation for the output of the units parser. """
 import pprint
-
+import itertools
 from enum import Enum
 from pathlib import Path
 from pysercomb.parsers.units import get_unit_dicts, _plus_or_minus, make_unit_parser
@@ -115,7 +115,10 @@ class ProtcParameter:
 
     @property
     def for_text(self):
-        return Param(self._tuple)()
+        return ParamParser(self._tuple)()
+
+    def for_python(self):
+        return ParamForJson(self._tuple)()
 
 
 class ProtcParameterParser(UnitsHelper, ProtcParameter):
@@ -123,6 +126,208 @@ class ProtcParameterParser(UnitsHelper, ProtcParameter):
     def __init__(self, value):
         success, ast, rest = self._parameter_expression(value)
         super().__init__(ast)
+
+
+class LoR:
+    op = None
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+
+    def __str__(self):
+        return f'{self.left!r}{self.op}{self.right!r}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.left!r}, {self.right!r})'
+
+
+class Unit:
+    def __init__(self, unit, prefix=None):
+        self.unit = unit
+        self.prefix = prefix
+
+    def __repr__(self):
+        prefix = self.prefix if self.prefix else ''
+        return f'{prefix}{self.unit}'
+
+    def __mul__(self, other):
+        return self.__class__(f'{self}*{other}')
+
+    def __imul__(self, other):
+        return self.__mul__(other)
+
+    def __rtruediv__(self, other):
+        return self.__class__(f'{self}/{other}')
+
+    def __pow__(self, other):
+        return self.__class__(f'{self}^{other}')
+
+    def __truediv__(self, other):
+        # TODO do the unit math ...
+        return self.__class__(f'{self}/{other}')
+
+    def __eq__(self, other):
+        # TODO do the unit math
+        return self.unit == other.unit and self.prefix == other.prefix
+
+    def __hash__(self):
+        return hash((hash(self.__class__), self.unit, self.prefix))
+
+
+class Expr:
+    op = None
+
+    def __add__(self, other):
+        return Add(self, other)
+
+    def __iadd__(self, other):
+        return self.__add__(other)
+
+    def __mul__(self, other):
+        return Mul(self, other)
+
+    def __imul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        return Div(self, other)
+
+    def __pow__(self, other):
+        return Exp(self, other)
+
+    def __lt__(self, other):
+        if other is LessThan:
+            return LessThan(None, other)
+        else:
+            raise NotImplementedError
+
+    def __gt__(self, other):
+        if other is GreaterThan:
+            return GreaterThan(None, other)
+        else:
+            raise NotImplementedError
+
+
+class Add(LoR, Expr):
+    op = '+'
+
+
+class Mul(LoR, Expr):
+    op = '*'
+
+
+class Div(LoR, Expr):
+    op = '/'
+
+
+class Exp(LoR, Expr):
+    op = '^'
+
+
+class Quantity(Expr):
+
+    def __init__(self, value, unit):
+        self.value = value
+        self.unit = unit
+
+    def __str__(self):
+        unit = self.unit if self.unit else ''
+        return f'{self.value}{unit}'
+
+    def __repr__(self):
+        unit = f', {self.unit!r}' if self.unit else ''
+        return f'{self.__class__.__name__}({self.value!r}{unit})'
+
+
+class PrefixQuantity(Quantity):
+    def __repr__(self):
+        unit = f', {self.unit!r}' if self.unit else ''
+        return f'{self.__class__.__name__}({self.value!r}, {self.unit!r})'
+
+    def __str__(self):
+        unit = self.unit if self.unit else ''  # this case shouldn't happen but better safe than sorry
+        return f'{unit}{self.value}'
+
+
+class _Than:
+    op = None
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+
+
+    def __call__(self, other):
+        if self.left is None:
+            return getattr(other, self._op)(self)
+
+    def __str__(self):
+        left = f'{self.left} ' if self.left else ''
+        return f'{left}{self.op} {self.right}'
+
+
+class ltclass(type):
+    _op = '__lt__'
+    def __lt__(self, other):
+        return self(None, other)
+
+
+class gtclass(type):
+    _op = '__gt__'
+    def __gt__(self, other):
+        return self(None, other)
+
+
+class LessThan(_Than, metaclass=ltclass):
+    op = '<'
+
+
+class GreaterThan(_Than, metaclass=gtclass):
+    op = '>'
+
+
+class Range(Expr):
+    op = '-'
+    def __init__(self, start, stop, unit=None):
+        self.start = start.value
+        self.stop = stop.value
+        # FIXME match units
+        self.unit = (start.unit
+                     if start.unit is not None
+                     else (stop.unit if stop.unit is not None
+                           else unit))
+
+    def __str__(self):
+        unit = self.unit if self.unit else ''
+        return f'{self.start}{self.op}{self.stop}{unit}'
+
+    def __repr__(self):
+        unit = f', {self.unit!r}' if self.unit else ''
+        return f'{self.__class__.__name__}({self.start!r}, {self.stop!r}{unit})'
+
+
+class PlusOrMinus(Range):
+    op = _plus_or_minus
+
+
+class Dilution(LoR):
+    op = ':'
+
+
+class Dimensions:
+    op = 'x'
+    def __init__(self, *dims, unit=None):
+        unit = set(d.unit for d in itertools.chain(dims, (unit,)) if d and d.unit is not None)
+        if len(unit) > 1:
+            raise ValueError(f'More than one unit! {unit}')
+        elif unit:
+            self.unit = next(iter(unit))
+        else:
+            self.unit = None
+
+        self.values = tuple(d.value for d in dims)
+
+    def __str__(self):
+        return self.op.join(self.values) + (str(self.unit) if self.unit else '')
 
 
 class mode(Enum):
@@ -189,7 +394,7 @@ class Interpreter:
             # have unkown lenght
             tup = expression
             if not tup:
-                return ''  # ah nil
+                return None
         else:
             return str(expression)
 
@@ -205,25 +410,21 @@ class Interpreter:
         return function_or_macro(*value)  # apply is * woo
 
 
-class TextOut:
-    pass
-
-
 macro = MacroDecorator()
 @macro.has_macros
-class Param(UnitsHelper, TextOut, Interpreter):
+class ParamParser(UnitsHelper, Interpreter):
     """ definitions for the param: namespace """
 
     def parse_failure(self, *args):
-        return ''  # TODO
+        return None
 
     def expr(self, sexp):
         return sexp
 
     def unit_expr(self, expression):  # TODO probably a macro
-        if ' * ' in expression:
+        #if ' * ' in expression:
             # FIXME ... would prefer to detect ahead of time
-            expression = expression.replace(' * ', '*')
+            #expression = expression.replace(' * ', '*')
 
         return expression
 
@@ -238,19 +439,19 @@ class Param(UnitsHelper, TextOut, Interpreter):
         full = ('weeks', 'days', 'months', 'years')
         unquoted_unit = unit[1:]
         if prefix is None and unquoted_unit in full:
-            return ' ' + unquoted_unit
+            return Unit(unquoted_unit)
 
         p = self._prefix(prefix)
         u = self._unit(unquoted_unit)
 
-        return f'{p}{u}'
+        return Unit(u, p)
 
     def _prefix(self, prefix):
         if prefix:
             prefix = prefix[1:]
             return self.prefix_dict[prefix]
         else:
-            return ''
+            return None
 
     def _unit(self, unquoted_unit):
         return self.unit_dict[unquoted_unit]
@@ -267,30 +468,33 @@ class Param(UnitsHelper, TextOut, Interpreter):
         value = self.eval(value)
         unit_value = self.eval(unit)
         if unit and unit[0] == 'param:prefix-unit':
-            return unit_value + value  # FIXME hack
+            return PrefixQuantity(value, unit_value)
         else:
-            return value + unit_value  # FIXME hack
+            return Quantity(value, unit_value)
 
     def plus(self, *operands):
-        sep = ' + '
-        return sep.join(operands)
+        first, *rest = operands
+        for o in rest:
+            first += o
+
+        return first
 
     def minus(self, left, right):
-        return f'{left} - {right}'
+        return left - right
+        #return f'{left} - {right}'
 
     def multiplication(self, *operands):
-        sep = ' * '  # '*' for unit?
-        return sep.join(operands)
+        first, *rest = operands
+        for o in rest:
+            first *= o
+
+        return first
 
     def division(self, numerator, denominator):
-        if denominator.startswith(' ') and denominator.endswith('s'):
-            # days hours etc
-            denominator = denominator[1:-1]
-
-        return f'{numerator}/{denominator}'
+        return numerator / denominator
         
     def exp(self, left, right):
-        return f'{left}^{right}'
+        return left ** right
 
     def approximately(self, expression):
         return f'~{expression}'
@@ -303,17 +507,19 @@ class Param(UnitsHelper, TextOut, Interpreter):
 
             return 
 
+        return PlusOrMinus(base, error)
         return f'{base}{_plus_or_minus}{error}'
 
     def range(self, start, stop):
-        return f'{start}-{stop}'
+        return Range(start, stop)
 
     def dilution(self, left, right):
-        return f'{left}:{right}'
+        return Dilution(left, right)
 
     def dimensions(self, *quants):
         # TODO reduce multiple units ?? it 1mm x 1mm x 1mm -> 1x1x1mm
-        return ' x '.join(quants)
+        return Dimensions(*quants)
+        #return ' x '.join(quants)
 
     def bool(self, value):
         return 'true' if value == '#t' else 'false'
@@ -330,16 +536,25 @@ class Param(UnitsHelper, TextOut, Interpreter):
                 return f'({s} {left} ' + ' '.join(right) + ')'
 
     def greater_than(self, left, *right):
-        self._than('>', left, right)
+        if not right:
+            return GreaterThan > left
+
+        return left > right
 
     def less_than(self, left, *right):
-        self._than('<', left, right)
+        if not right:
+            # interpret as (< quantity left)
+            # with an implicit unmeasured quantity
+            # basically a combinator
+            return LessThan < left
+
+        return left < right
 
 
 
 macro = MacroDecorator()
 @macro.has_macros
-class ParamForTriple(Param):
+class ParamForTriple(ParamParser):
     @macro
     def quantity(self, value, unit):
         """ FIXME this prefix_unit issue reveals that this should

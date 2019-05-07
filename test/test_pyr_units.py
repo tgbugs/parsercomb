@@ -1,6 +1,6 @@
 import unittest
 from pysercomb.parsers.units import DEGREES_FEAR
-from pysercomb.pyr.units import Param, ProtcParameter
+from pysercomb.pyr.units import ParamParser, ProtcParameter
 from .common import *
 
 evil_white_dot = DEGREES_FEAR.decode()
@@ -11,7 +11,8 @@ class TestParam(unittest.TestCase):
         roundtrip = []
         for ir in parsed:
             try:
-                text = Param(ir)()
+                unit = ParamParser(ir)()
+                text = str(unit)
                 if text:
                     new_ir = parameter_expression(text)
                     roundtrip.append((ir, new_ir))
@@ -29,15 +30,15 @@ class TestParam(unittest.TestCase):
         roundtrip = []
         for ir in parsed:
             try:
-                text = Param(ir)()
+                text = ParamParser(ir)()
                 if text:
                     _, new_ir, _ = parameter_expression(text)
-                    roundtrip.append((ir, new_ir))
+                    roundtrip.append((text, ir, new_ir))
             except BaseException as e:
                 pass
 
-        bads = [(ProtcParameter(a), ProtcParameter(b)) for a, b in roundtrip
+        bads = [(text, ProtcParameter(a), ProtcParameter(b)) for text, a, b in roundtrip
                 if a != b]
 
         join = '\n===============================================\n'
-        assert not bads, join.join([f'{a}\n{b}' for a, b in bads])
+        assert not bads, '\n' + join.join([f'{text!r}\n{pa}\n{pb}' for text, pa, pb in bads])
