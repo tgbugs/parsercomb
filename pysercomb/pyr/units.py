@@ -279,6 +279,11 @@ class Quantity(Expr):
         unit = f', {self.unit!r}' if self.unit else ''
         return f'{self.__class__.__name__}({self.value!r}{unit})'
 
+    def __eq__(self, other):
+        # TODO do the unit math
+        print(repr(self), repr(other))
+        return self.value == other.value and self.unit == other.unit
+
 
 class PrefixQuantity(Quantity):
     def __repr__(self):
@@ -671,14 +676,32 @@ class Protc(Interpreter):
         pass
 
 
+# default configuration interpreters
+# override these after import if there are custom formats that you want export to
+UnitsHelper.setup()
+ParamParser = _ParamParser.bindPython(Unit,
+                                      PrefixUnit,
+                                      Quantity,
+                                      PrefixQuantity,
+                                      Range,
+                                      Dilution,
+                                      Dimensions)
+
 # the parsing api for external consumption
 
-class UnitsParser(UnitsHelper, SExpr):
+class UnitsParser(UnitsHelper, SExpr):  # FIXME this needs to be extnesible as well
 
     def __new__(cls, string_to_parse):
-        success, ast, rest = cls._parameter_expression(string_to_parse)
-        self = super().__new__(cls, ast)
+        success, sexp, rest = cls._parameter_expression(string_to_parse)
+        self = super().__new__(cls, sexp)
         return self
+
+    def __call__(self, string_to_parse):
+        # FIXME, do we want this version ??
+        pass
+
+    def asPython(self):
+        return ParamParser()(self)  # FIXME ... needs to be more flexible
 
 
 # pretty printing config
@@ -691,13 +714,3 @@ def _pprint_operation(self, object, stream, indent, allowance, context, level):
 pprint.PrettyPrinter._dispatch[SExpr.__repr__] = _pprint_operation
 
 
-# default configuration interpreters
-# override these after import if there are custom formats that you want export to
-UnitsHelper.setup()
-ParamParser = _ParamParser.bindPython(Unit,
-                                      PrefixUnit,
-                                      Quantity,
-                                      PrefixQuantity,
-                                      Range,
-                                      Dilution,
-                                      Dimensions)

@@ -2,7 +2,7 @@ import pprint
 import unittest
 from pysercomb import exceptions as exc
 from pysercomb.parsers.units import DEGREES_FEAR
-from pysercomb.pyr.units import ParamParser, SExpr
+from pysercomb.pyr.units import ParamParser, SExpr, Expr, UnitsParser, Quantity
 from .common import *
 
 evil_white_dot = DEGREES_FEAR.decode()
@@ -68,3 +68,10 @@ class TestParam(unittest.TestCase):
         join = '\n===============================================\n'
         assert not bads, '\n' + join.join([f'{text!r}\n{new_text!r}\n{pa}\n{pb}'
                                            for text, new_text, pa, pb in bads])
+
+class TestUnitsParser:
+    def test_simple(self):
+        ten_mega_liters = UnitsParser('10ML')
+        assert isinstance(ten_mega_liters, SExpr)
+        ap = ten_mega_liters.asPython()
+        assert ap == Quantity(10, 'ML')
