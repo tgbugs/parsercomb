@@ -25,9 +25,22 @@ class TestUnit(unittest.TestCase):
         assert unit('R') == (True, ('param:unit', "'ohms"), ''), 'R did not parse to ohms'
         assert unit('RCF') == (True, ('param:unit', "'relative-centrifugal-force"), ''), 'RCF did not parse to relative-centrifugal-force'
 
-    def test_numerical_aperature(self):
+    def test_numerical_aperture(self):
         assert unit('N') == (True, ('param:unit', "'newtons"), ''), 'N did not parse to newtons'
-        assert unit('NA') == (True, ('param:unit', "'numerical-aperature"), ''), 'NA did not parse to numerical-aperature'
+        msg = 'NA did not parse to numerical-aperture'
+        assert unit('NA') == (True, ('param:unit', "'numerical-aperture"), ''), msg
+
+    def test_dimension_not_fold(self):
+        msg = 'A x B failed to parse as dimensions!'
+        assert parameter_expression('50 x 50 um')[1] == ('param:dimensions',
+                                                         ('param:quantity', 50, ()),
+                                                         ('param:quantity', 50,
+                                                          ('param:unit', "'meters", "'micro"))), msg
+
+    def test_percent(self):
+        msg = '% failed to parse'
+        assert parameter_expression('0.3%')[1] == ('param:quantity', 0.3, ('param:unit', "'percent")), msg
+
 
 class TestExpr(unittest.TestCase):
     def test_prefix_infix_expr(self):

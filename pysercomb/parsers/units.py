@@ -1,3 +1,4 @@
+from itertools import chain
 from pysercomb.utils import coln
 from pysercomb.parsing import *
 from pysercomb.parsers.racket import racket_doc, LEXEME
@@ -124,7 +125,7 @@ def get_unit_dicts(units_path):
 
 
 DEGREES_UNDERLINE = b'\xc2\xba'.decode()  # º sometimes pdfs misencode these
-DEGREES_FEAR = b'\xe2\x97\xa6' # this thing is scary and I have no id what it is or why it wont change color ◦
+DEGREES_FEAR = b'\xe2\x97\xa6' # this thing is scary and I have no idea what it is or why it wont change color ◦
 
 def hms(h, m, s):
     """ hours minutes seconds to seconds """
@@ -142,18 +143,24 @@ def make_unit_parser(units_path=None, dicts=None):
         gs.update(dict_)
 
     _silookup = {k: "'" + v
-                 for k, v in units_si + units_extra +
-                 tuple([v, v] for k, v in units_si) +
-                 tuple([v, v] for k, v in units_extra)}
+                 for k, v in chain(units_si,
+                                   units_extra,
+                                   ([v, v] for k, v in units_si),
+                                   ([v, v] for k, v in units_extra))}
     _implookup = {k: "'" + v  # imperial separate because they don't support prefixes
-                  for k, v in units_imp +
-                  tuple([v, v] for k, v in units_imp)}
+                  for k, v in chain(units_imp,
+                                    units_dimensionless,
+                                    ([v, v] for k, v in units_imp),
+                                    ([v, v] for k, v in units_dimensionless))}
     _siplookup = {k: "'" + v for k, v in prefixes_si}
 
     siprefix = OR(*make_funcs(coln(0, prefixes_si), _siplookup))
-    siunit = OR(*make_funcs(list(coln(0, units_si + units_extra)) + # need both here to avoid collisions in unit_atom slower but worth it?
-                            list(coln(1, units_si + units_extra)), _silookup))
-    impunit = OR(*make_funcs(list(coln(0, units_imp)) + list(coln(1, units_imp)), _implookup))
+    siunit = OR(*make_funcs(chain(coln(0, units_si + units_extra), # need both here to avoid collisions in unit_atom slower but worth it?
+                                  coln(1, units_si + units_extra)),
+                            _silookup))
+    impunit = OR(*make_funcs(chain(coln(0, units_imp + units_dimensionless),
+                                   coln(1, units_imp + units_dimensionless)),
+                             _implookup))
 
     _C_for_temp = COMP('C')
     C_for_temp = RETVAL(_C_for_temp, BOX(_silookup['degrees-celcius']))
@@ -194,8 +201,7 @@ def make_unit_parser(units_path=None, dicts=None):
     def range_thing(func): return JOINT(func, COMPOSE(spaces, range_indicator), COMPOSE(spaces, func))
 
     pH = RETVAL(COMP('pH'), BOX("'pH"))
-    P = COMP('P')
-    post_natal_day = RETVAL(P, BOX("'postnatal-day"))  # FIXME note that in our unit hierarchy this is a subclass of days
+    post_natal_day = RETVAL(COMP('P'), BOX("'postnatal-day"))  # FIXME note that in our unit hierarchy this is a subclass of days
     _fold_prefix = END(by, num)
     fold_prefix = RETVAL(_fold_prefix, BOX("'fold"))
 
@@ -203,10 +209,8 @@ def make_unit_parser(units_path=None, dicts=None):
     _prefix_quantity = JOINT(prefix_unit, COMPOSE(spaces, num))  # OR(JOINT(fold, num))
     prefix_quantity = BIND(_prefix_quantity, FLOP)
 
-    _percent = COMP('%')
-    percent = RETVAL(_percent, BOX("'percent"))
     fold_suffix = RETVAL(END(by, noneof('0123456789')), BOX("'fold"))  # NOT(num) required to prevent issue with dimensions
-    _suffix_unit = param('unit')(OR(percent, unit_implicit_count_ratio))
+    _suffix_unit = param('unit')(OR(unit_implicit_count_ratio))
     suffix_unit = OR(_suffix_unit, unit)
     suffix_unit_no_space = OR(param('unit')(OR(EXACTLY_ONE(fold_suffix), C_for_temp)), unit_starts_with_dash)  # FIXME this is really bad :/ and breaks dimensions...
     suffix_quantity = JOINT(num, OR(suffix_unit_no_space,
@@ -321,7 +325,7 @@ def main():
     from pathlib import Path
     from desc.prof import profile_me
     from IPython import embed
-    from pysercomb.pyr.units import ProtcParameter
+    from pysercomb.pyr.units import SExpr
     from protcur.config import __units_folder__ as units_path
 
     (parameter_expression, quantity, unit,
@@ -345,7 +349,7 @@ def main():
             if not success:
                 rest = t
             else:
-                pid.append(ProtcParameter(v))
+                pid.append(SExpr(v))
 
             test_all.append((success, v, rest))
     start = time()
