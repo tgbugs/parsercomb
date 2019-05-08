@@ -77,6 +77,7 @@ def op_order(return_value):
                 # can't index because we are at the bottom
                 # FIXME this has ambiguous semantics
                 continue
+
         return subtree[0]
     lisped = inner(return_value)
     if lisped != return_value:
@@ -319,12 +320,12 @@ def parse_for_tests(parameter_expression=None):
 
     return tests, prefix_expr_tests, weirds, should_fail, param_test_strings, _all, parsed
 
+
 def main():
     import pprint
     from time import time
     from pathlib import Path
     from desc.prof import profile_me
-    from IPython import embed
     from pysercomb.pyr.units import SExpr
     from protcur.config import __units_folder__ as units_path
 
@@ -369,7 +370,9 @@ def main():
                                          for t in tests + weirds), key=lambda v: v[25:]))
     print(test_expression2)
     test_fails = [parameter_expression(t) for t in tests]
-    embed()
+    if __name__ == '__main__':
+        from IPython import embed
+        embed()
 
 
 if __name__ == '__main__':

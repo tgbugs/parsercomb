@@ -1,36 +1,55 @@
 import unittest
 from .common import *
+from pysercomb.parsers import units
 
 
 class TestForms(unittest.TestCase):
-    def test_time_vs_dilution(self):
-        assert parameter_expression('1:1000') == (True, ('param:dilution', 1, 1000), ''), 'dilution failed'
-        assert (parameter_expression('00:00:01')
-                == (True, ('param:quantity', 1, ('param:unit', "'seconds")), '')), 'duration failed'
-        assert (parameter_expression('00:01:01')
-                == (True, ('param:quantity', 61, ('param:unit', "'seconds")), '')), 'duration failed'
-        assert (parameter_expression('01:01:01')
-                == (True, ('param:quantity', 3661, ('param:unit', "'seconds")), '')), 'duration failed'
-        assert (parameter_expression('1:99:01')
-                == (True, ('param:quantity', 9541, ('param:unit', "'seconds")), '')), 'duration failed'
+    def test_dilution(self):
+        assert parameter_expression('1:1000')[1] == ('param:dilution', 1, 1000), 'dilution failed'
+
+    def test_time_seconds(self):
+        assert (parameter_expression('00:00:01')[1]
+                == ('param:quantity', 1, ('param:unit', "'seconds"))), 'duration failed'
+
+    def test_time_minutes(self):
+        assert (parameter_expression('00:01:01')[1]
+                == ('param:quantity', 61, ('param:unit', "'seconds"))), 'duration failed'
+
+    def test_time_hours(self):
+        assert (parameter_expression('01:01:01')[1]
+                == ('param:quantity', 3661, ('param:unit', "'seconds"))), 'duration failed'
+
+    def test_time_weird(self):
+        assert (parameter_expression('1:99:01')[1]
+                == ('param:quantity', 9541, ('param:unit', "'seconds"))), 'duration failed'
 
 
 class TestUnit(unittest.TestCase):
-    def test_no_imperial_prefix(self):
+    def test_minutes(self):
         """ make sure we don't parse min -> milli inches """
         assert unit('min') == (True, ('param:unit', "'minutes"), ''), 'min did not parse to minutes'
+
+    def test_inches(self):
         assert unit('in') == (True, ('param:unit', "'inches"), ''), 'in did not parse to inches'
 
-    def test_rcf_ohms(self):
+    def test_ohms(self):
         assert unit('R') == (True, ('param:unit', "'ohms"), ''), 'R did not parse to ohms'
+
+    def test_rcf(self):
         assert unit('RCF') == (True, ('param:unit', "'relative-centrifugal-force"), ''), 'RCF did not parse to relative-centrifugal-force'
 
-    def test_numerical_aperture(self):
+    def test_newtons(self):
         assert unit('N') == (True, ('param:unit', "'newtons"), ''), 'N did not parse to newtons'
+
+    def test_numerical_aperture(self):
         msg = 'NA did not parse to numerical-aperture'
         assert unit('NA') == (True, ('param:unit', "'numerical-aperture"), ''), msg
 
-    def test_dimension_not_fold(self):
+    def test_fold(self):
+        msg = 'Ax failed to parse as fold!'
+        assert parameter_expression('40x')[1] == ('param:quantity', 40, ('param:unit', "'fold")), msg
+
+    def test_dimension(self):
         msg = 'A x B failed to parse as dimensions!'
         assert parameter_expression('50 x 50 um')[1] == ('param:dimensions',
                                                          ('param:quantity', 50, ()),
@@ -114,3 +133,9 @@ class TestExpr(unittest.TestCase):
                   ('param:quantity', 2, ())),),
                 '')
         assert out == test
+
+
+class TestMain(unittest.TestCase):
+    def test_main(self):
+        """ catch any changes here as well, eventually we should remove main for this ... """
+        units.main()

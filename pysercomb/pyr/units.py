@@ -4,6 +4,7 @@ import itertools
 from enum import Enum
 from pathlib import Path
 from pysercomb import exceptions as exc
+from pysercomb.utils import log, logd
 from pysercomb.parsers.units import get_unit_dicts, _plus_or_minus, make_unit_parser
 from protcur.config import __script_folder__ as pasf
 
@@ -479,20 +480,17 @@ class _ParamParser(UnitsHelper, Interpreter):
         return type('ParamParser', (cls,), class_dict)
 
     def parse_failure(self, *args):
-        error = exc.ParseFailure('no context to know what the expr was')
+        e = exc.ParseFailure('no context to know what the expr was')
         if self._config.parser_failure_mode == mode.FAIL:
-            raise error
+            raise e
 
-        return error
+        logd.error(str(e))
+        return e
 
     def expr(self, sexp):
         return sexp
 
     def unit_expr(self, expression):  # TODO probably a macro
-        #if ' * ' in expression:
-            # FIXME ... would prefer to detect ahead of time
-            #expression = expression.replace(' * ', '*')
-
         return expression
 
     @macro  # oops, sometime unit expressions are hidden in units :x
@@ -566,11 +564,13 @@ class _ParamParser(UnitsHelper, Interpreter):
 
     def plus_or_minus(self, base, error=None):
         if error is None:
-            e = exc.BadNotationError(f'error is a required argument for plus_or_minus '
-                                     'someone is misusing the notation!')
+            msg = (f'error is a required argument for plus_or_minus '
+                   'someone is misusing the notation!')
+            e = exc.BadNotationError(msg)
             if self._config.data_failure_mode == mode.FAIL:
                 raise e
 
+            logd.error(str(e))
             return e
 
         return PlusOrMinus(base, error)
