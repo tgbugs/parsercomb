@@ -17,6 +17,8 @@ class UnitsHelper:
 
     @classmethod
     def setup(cls):
+        """ call setup on UnitsHelper once, not on subclasses """
+
         units_path = Path(pasf, '../../protc-lib/protc/units')
         dicts = get_unit_dicts(units_path)
 
@@ -36,6 +38,8 @@ class UnitsHelper:
                                 units_dimensionless,
                                 units_dimensionless_prefix,
                                 units_imp,)}
+
+        cls.unit_dict_inv = {a:u for u, a in cls.unit_dict.items()}
 
         # don't actually need this because its in the ast
         #prefix_units = set(unit for abbrev, unit in
@@ -140,14 +144,35 @@ class LoR:
         return f'{self.__class__.__name__}({self.left!r}, {self.right!r})'
 
 
+class UnitSuffix(UnitsHelper, str):
+    @property
+    def fullName(self):
+        try:
+            return self.unit_dict_inv[self]
+        except KeyError:
+            # FIXME we need an internal representation for composed units
+            # but not today!
+            return None
+
+
 class Unit:
+
+    full = ('weeks', 'days', 'months', 'years')
+
     def __init__(self, unit, prefix=None):
-        self.unit = unit
+        self.unit = UnitSuffix(unit)
         self.prefix = prefix
 
-    def __repr__(self):
+    def __str__(self):
         prefix = self.prefix if self.prefix else ''
-        return f'{prefix}{self.unit}'
+        unit = (' ' + self.unit.fullName
+                if self.unit.fullName in self.full
+                else self.unit)
+
+        return f'{prefix}{unit}'
+
+    def __repr__(self):
+        return repr(str(self))
 
     def __mul__(self, other):
         return self.__class__(f'{self}*{other}')
@@ -171,6 +196,16 @@ class Unit:
 
     def __hash__(self):
         return hash((hash(self.__class__), self.unit, self.prefix))
+
+
+class PrefixUnit(Unit):
+    """ There are some use cases for the unit also carrying this information """
+
+    def __init__(self, unit, prefix=None):
+        if isinstance(unit, Unit):
+            super().__init__(unit.unit, unit.prefix)
+        else:
+            super().__init__(unit, prefix)
 
 
 class Expr:
@@ -231,7 +266,7 @@ Expr._Exp = Exp
 
 class Quantity(Expr):
 
-    def __init__(self, value, unit):
+    def __init__(self, value, unit=None):
         self.value = value
         self.unit = unit
 
@@ -291,29 +326,21 @@ class GreaterThan(_Than, metaclass=gtclass):
 
 
 class Range(Expr):
+    """ This is a non-homogenous range, units may differ """
     op = '-'
-    def __init__(self, start, stop, unit=None):
-        # FIXME range has to parse values before units
-        # because range 'is' a quantity
-        self.start = start.value
-        self.stop = stop.value
-        # FIXME match units
-        # FIXME this is where the unit does carry the
-        # prefix information rather than the quantity hrm
-        # which means that we need to treat range as a kind of quantity
-        # and have a prefix version of it
-        self.unit = (start.unit
-                     if start.unit is not None
-                     else (stop.unit if stop.unit is not None
-                           else unit))
+    def __init__(self, start, stop):
+        self.start = start
+        self.stop = stop
+        # unit representation is dealt with by the parser
+        # range could figure it out now with the info
+        # provided, but for now is just going to be a dumb
+        # container
 
     def __str__(self):
-        unit = self.unit if self.unit else ''
-        return f'{self.start}{self.op}{self.stop}{unit}'
+        return f'{self.start}{self.op}{self.stop}'
 
     def __repr__(self):
-        unit = f', {self.unit!r}' if self.unit else ''
-        return f'{self.__class__.__name__}({self.start!r}, {self.stop!r}{unit})'
+        return f'{self.__class__.__name__}({self.start!r}, {self.stop!r})'
 
 
 class PlusOrMinus(Range):
@@ -338,7 +365,7 @@ class Dimensions:
         self.values = tuple(d.value for d in dims)
 
     def __str__(self):
-        return self.op.join(self.values) + (str(self.unit) if self.unit else '')
+        return self.op.join(str(v) for v in self.values) + (str(self.unit) if self.unit else '')
 
 
 class mode(Enum):
@@ -414,7 +441,7 @@ class Interpreter:
             if not tup:
                 return None
         else:
-            return str(expression)
+            return expression
 
         first, *rest = tup
         pyfirst = self.lisp_to_python(first)
@@ -434,6 +461,7 @@ class _ParamParser(UnitsHelper, Interpreter):
     """ definitions for the param: namespace """
 
     _Unit = None
+    _PrefixUnit = None
     _Quantity = None
     _PrefixQuantity = None
     _Range = None
@@ -472,14 +500,11 @@ class _ParamParser(UnitsHelper, Interpreter):
         if unit[0] == '/':  # FIXME broken parser output
             return self.eval(unit)
 
-        unit = self.eval(unit)
+        quoted_unit = self.eval(unit)
         if prefix is not None:
             prefix = self.eval(prefix)
-        full = ('weeks', 'days', 'months', 'years')
-        unquoted_unit = unit[1:]
-        if prefix is None and unquoted_unit in full:
-            return self._Unit(unquoted_unit)
 
+        unquoted_unit = quoted_unit[1:]
         p = self._prefix(prefix)
         u = self._unit(unquoted_unit)
 
@@ -496,7 +521,7 @@ class _ParamParser(UnitsHelper, Interpreter):
         return self.unit_dict[unquoted_unit]
 
     def prefix_unit(self, unit):
-        return self.unit(unit)
+        return self._PrefixUnit(self.unit(unit))
 
     #@macro(True, False)  # TODO specify which values can be evaluated
     @macro
@@ -507,7 +532,6 @@ class _ParamParser(UnitsHelper, Interpreter):
         value = self.eval(value)
         unit_value = self.eval(unit)
         if unit and unit[0] == 'param:prefix-unit':
-            breakpoint()
             return self._PrefixQuantity(value, unit_value)
         else:
             return self._Quantity(value, unit_value)
@@ -550,8 +574,29 @@ class _ParamParser(UnitsHelper, Interpreter):
 
         return PlusOrMinus(base, error)
 
-    def range(self, start, stop):
-        return self._Range(start, stop)
+    def range(self, left, right):
+        """ Range faces a similar issue as quantity
+            In a purely homogenous system ranges values
+            would always have start and stop represented
+            in the same units. We can't gurantee that, or
+            rather, we could, but the question then becomes
+            where to implement the reconciliation between the
+            different units, and the answer is 'here' for range
+            and for dimensions, this is true even if we are handed
+            prefix quantities """
+        # TODO abstract this for *quants (i.e. dimensions)
+        units = set(e.unit for e in (left, right))
+        if len(units) == 1:  # otherwise we are going to print both units
+            unit = next(iter(units))
+            # hack to simplify printing
+            if isinstance(unit, self._PrefixUnit):
+                left = PrefixQuantity(left.value, unit)
+                right = PrefixQuantity(right.value)
+            else:
+                left = Quantity(left.value)
+                right = Quantity(right.value, unit)
+
+        return self._Range(left, right)
 
     def dilution(self, left, right):
         return self._Dilution(left, right)
@@ -648,6 +693,7 @@ pprint.PrettyPrinter._dispatch[SExpr.__repr__] = _pprint_operation
 # override these after import if there are custom formats that you want export to
 UnitsHelper.setup()
 ParamParser = _ParamParser.bindPython(Unit,
+                                      PrefixUnit,
                                       Quantity,
                                       PrefixQuantity,
                                       Range,
