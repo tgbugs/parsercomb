@@ -47,10 +47,11 @@ class UnitsHelper:
 class ProtcParameter:
     format_nl =  '*', '/', 'range', 'plus-or-minus', 'param:dimensions'
     format_nl_long =  '^'
+    _ParamParser = None
 
     def __init__(self, tuple_repr):
         self._tuple = tuple_repr
-        self._ir = ParamParser(self._tuple)
+        self._ir = self._ParamParser(self._tuple)
 
     def isLongNL(self, tuple_):
         if tuple_[0] in self.format_nl_long:
@@ -110,17 +111,6 @@ class ProtcParameter:
         _tuple = self.format_value(len(cname) + 1 + indent) 
         return cname + f'({_tuple})'
 
-    @property
-    def for_triples(self):
-        return self._ir.triples_conbinator
-
-    @property
-    def for_text(self):
-        return str(self._ir)
-
-    def asPython(self):
-        return self._ir
-
 
 class ProtcParameterParser(UnitsHelper, ProtcParameter):
 
@@ -179,22 +169,22 @@ class Expr:
     op = None
 
     def __add__(self, other):
-        return Add(self, other)
+        return self._Add(self, other)
 
     def __iadd__(self, other):
         return self.__add__(other)
 
     def __mul__(self, other):
-        return Mul(self, other)
+        return self._Mul(self, other)
 
     def __imul__(self, other):
         return self.__mul__(other)
 
     def __truediv__(self, other):
-        return Div(self, other)
+        return self._Div(self, other)
 
     def __pow__(self, other):
-        return Exp(self, other)
+        return self._Exp(self, other)
 
     def __lt__(self, other):
         if other is LessThan:
@@ -223,6 +213,12 @@ class Div(LoR, Expr):
 
 class Exp(LoR, Expr):
     op = '^'
+
+
+Expr._Add = Add
+Expr._Mul = Mul
+Expr._Div = Div
+Expr._Exp = Exp
 
 
 class Quantity(Expr):
@@ -412,8 +408,25 @@ class Interpreter:
 
 macro = MacroDecorator()
 @macro.has_macros
-class ParamParser(UnitsHelper, Interpreter):
+class _ParamParser(UnitsHelper, Interpreter):
     """ definitions for the param: namespace """
+
+    _Unit = None
+    _Quantity = None
+    _PrefixQuantity = None
+    _Range = None
+    _Dilution = None
+    _Dimensions = None
+
+    @classmethod
+    def bindPython(cls, *classes):
+        """ returns a new interpreter bound to a particular implementation of
+            Unit
+
+            specify the underlying python classes that the parser targets
+            this is sort of like being able to change the #lang you are using """
+        class_dict = {'_' + cls.__name__:cls for cls in classes}
+        return type('ParamParser', (cls,), class_dict)
 
     def parse_failure(self, *args):
         return None
@@ -439,12 +452,12 @@ class ParamParser(UnitsHelper, Interpreter):
         full = ('weeks', 'days', 'months', 'years')
         unquoted_unit = unit[1:]
         if prefix is None and unquoted_unit in full:
-            return Unit(unquoted_unit)
+            return self._Unit(unquoted_unit)
 
         p = self._prefix(prefix)
         u = self._unit(unquoted_unit)
 
-        return Unit(u, p)
+        return self._Unit(u, p)
 
     def _prefix(self, prefix):
         if prefix:
@@ -468,9 +481,9 @@ class ParamParser(UnitsHelper, Interpreter):
         value = self.eval(value)
         unit_value = self.eval(unit)
         if unit and unit[0] == 'param:prefix-unit':
-            return PrefixQuantity(value, unit_value)
+            return self._PrefixQuantity(value, unit_value)
         else:
-            return Quantity(value, unit_value)
+            return self._Quantity(value, unit_value)
 
     def plus(self, *operands):
         first, *rest = operands
@@ -510,14 +523,14 @@ class ParamParser(UnitsHelper, Interpreter):
         return PlusOrMinus(base, error)
 
     def range(self, start, stop):
-        return Range(start, stop)
+        return self._Range(start, stop)
 
     def dilution(self, left, right):
-        return Dilution(left, right)
+        return self._Dilution(left, right)
 
     def dimensions(self, *quants):
         # TODO reduce multiple units ?? it 1mm x 1mm x 1mm -> 1x1x1mm
-        return Dimensions(*quants)
+        return self._Dimensions(*quants)
 
     def bool(self, value):
         return value == '#t'
@@ -584,9 +597,7 @@ class Protc(Interpreter):
         pass
 
 
-UnitsHelper.setup()
-
-
+# pretty printing config
 def _pprint_operation(self, object, stream, indent, allowance, context, level):
     #value = object.format_value(indent)  # how the heck does this work?
     value = object.__repr__(indent)  # how the heck does this work?
@@ -594,3 +605,15 @@ def _pprint_operation(self, object, stream, indent, allowance, context, level):
 
 
 pprint.PrettyPrinter._dispatch[ProtcParameter.__repr__] = _pprint_operation
+
+
+# default configuration interpreters
+# override these after import if there are custom formats that you want export to
+UnitsHelper.setup()
+ParamParser = _ParamParser.bindPython(Unit,
+                                      Quantity,
+                                      PrefixQuantity,
+                                      Range,
+                                      Dilution,
+                                      Dimensions)
+ProtcParameter._ParamParser = ParamParser
