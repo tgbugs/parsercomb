@@ -325,9 +325,13 @@ def main():
     import pprint
     from time import time
     from pathlib import Path
-    from desc.prof import profile_me
     from pysercomb.pyr.units import SExpr
     from protcur.config import __units_folder__ as units_path
+
+    try:
+        from desc.prof import profile_me
+    except ImportError:
+        profile_me = lambda f: f
 
     (parameter_expression, quantity, unit,
      unit_atom, debug_dict) = make_unit_parser(units_path)
