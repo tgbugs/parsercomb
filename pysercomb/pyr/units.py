@@ -50,6 +50,7 @@ class ProtcParameter:
 
     def __init__(self, tuple_repr):
         self._tuple = tuple_repr
+        self._ir = ParamParser(self._tuple)
 
     def isLongNL(self, tuple_):
         if tuple_[0] in self.format_nl_long:
@@ -111,14 +112,14 @@ class ProtcParameter:
 
     @property
     def for_triples(self):
-        return ParamForTriple(self._tuple)()
+        return self._ir.triples_conbinator
 
     @property
     def for_text(self):
-        return ParamParser(self._tuple)()
+        return str(self._ir)
 
-    def for_python(self):
-        return ParamForJson(self._tuple)()
+    def asPython(self):
+        return self._ir
 
 
 class ProtcParameterParser(UnitsHelper, ProtcParameter):
@@ -237,7 +238,6 @@ class Quantity(Expr):
     def __repr__(self):
         unit = f', {self.unit!r}' if self.unit else ''
         return f'{self.__class__.__name__}({self.value!r}{unit})'
-
 
 class PrefixQuantity(Quantity):
     def __repr__(self):
@@ -497,7 +497,7 @@ class ParamParser(UnitsHelper, Interpreter):
         return left ** right
 
     def approximately(self, expression):
-        return f'~{expression}'
+        return f'~{expression}'  # FIXME not quite ready
 
     def plus_or_minus(self, base, error=None):
         if error is None:
@@ -508,7 +508,6 @@ class ParamParser(UnitsHelper, Interpreter):
             return 
 
         return PlusOrMinus(base, error)
-        return f'{base}{_plus_or_minus}{error}'
 
     def range(self, start, stop):
         return Range(start, stop)
@@ -519,10 +518,10 @@ class ParamParser(UnitsHelper, Interpreter):
     def dimensions(self, *quants):
         # TODO reduce multiple units ?? it 1mm x 1mm x 1mm -> 1x1x1mm
         return Dimensions(*quants)
-        #return ' x '.join(quants)
 
     def bool(self, value):
-        return 'true' if value == '#t' else 'false'
+        return value == '#t'
+        #return 'true' if value == '#t' else 'false'
 
     def _than(self, symbol, left, right):
         s = symbol
@@ -549,23 +548,6 @@ class ParamParser(UnitsHelper, Interpreter):
             return LessThan < left
 
         return left < right
-
-
-
-macro = MacroDecorator()
-@macro.has_macros
-class ParamForTriple(ParamParser):
-    @macro
-    def quantity(self, value, unit):
-        """ FIXME this prefix_unit issue reveals that this should
-            really be prefix-quantity so that it doesn't have to
-            be a macro that looks for a prefix-unit """
-        value = self.eval(value)
-        unit_value = self.eval(unit)
-        if unit and unit[0] == 'param:prefix-unit':
-            return unit_value + ' ' + value  # FIXME hack
-        else:
-            return value + ' ' + unit_value  # FIXME hack
 
 
 macro = MacroDecorator()

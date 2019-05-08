@@ -299,7 +299,8 @@ def parse_for_tests(parameter_expression=None):
                   )
 
     from pathlib import Path
-    with open(Path('~/ni/dev/protocols/rkt/test-params.rkt').expanduser().as_posix(), 'rt') as f:
+    from protcur.config import __units_test_params__ as test_params
+    with open(test_params, 'rt') as f:
         success, v, rest = racket_doc(f.read())
 
     param_test_strings = tuple(s for e in v
@@ -321,12 +322,12 @@ def main():
     from desc.prof import profile_me
     from IPython import embed
     from pysercomb.pyr.units import ProtcParameter
+    from protcur.config import __units_folder__ as units_path
 
-    units_path = Path('~/git/protc/protc-lib/protc/units').expanduser()
-    (parameter_expression, quantity, unit, unit_atom,
-     debug_dict) = make_unit_parser(units_path)
+    (parameter_expression, quantity, unit,
+     unit_atom, debug_dict) = make_unit_parser(units_path)
 
-    (tests, prefix_expr_tests, weirds, should_fail, param_test_strings,
+    (tests, prefix_expr_tests, weirds, should_fail, param_test_strings, _all,
      parsed) = parse_for_tests()
 
     test_all = []
