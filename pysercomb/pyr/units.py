@@ -3,6 +3,7 @@ import pprint
 import itertools
 from enum import Enum
 from pathlib import Path
+from pysercomb import exceptions as exc
 from pysercomb.parsers.units import get_unit_dicts, _plus_or_minus, make_unit_parser
 from protcur.config import __script_folder__ as pasf
 
@@ -44,79 +45,86 @@ class UnitsHelper:
         cls.prefix_dict = {prefix:abbrev for abbrev, prefix in prefixes_si}
 
 
-class ProtcParameter:
+class SExpr(tuple):
+    """ This class can act as a pretty formatter for s-exprs or it
+        can act as a pretty printing object. To use it as a formatter
+        initialize it without any arguments as spp = SexpPrettyPrinter()
+    """
+
     format_nl =  '*', '/', 'range', 'plus-or-minus', 'param:dimensions'
-    format_nl_long =  '^'
-    _ParamParser = None
+    format_nl_long =  '^',  # the empty string is in all strings, so have to use tuple
 
-    def __init__(self, tuple_repr):
-        self._tuple = tuple_repr
-        self._ir = self._ParamParser(self._tuple)
+    def __call__(self, sexp, indent=0):
+        return self.__repr__(indent, sexp)
 
-    def isLongNL(self, tuple_):
-        if tuple_[0] in self.format_nl_long:
-            t1 = type(tuple_[1]) is tuple
-            t2 = type(tuple_[2]) is tuple
+    def isLongNL(self, sexp):
+        # and right here is where you want let
+        # you could skip this branch entirely except that
+        # it is much harder to read when you can't assign
+        # t1 and t2 but you have to assign them after the branch
+        if sexp[0] not in self.format_nl_long:
+            return
+
+        _op, s1, s2 = sexp
+        t1 = type(s1) is tuple
+        t2 = type(s2) is tuple
+        # have to defer the call to len until after the type check
+        return (t1 and t2 and (len(s1) > 2 or len(s2) > 2) or
+                t1 and len(s1) > 3 or
+                t2 and len(s2) > 3)
+
+        if sexp[0] in self.format_nl_long:
+            t1 = type(sexp[1]) is tuple
+            t2 = type(sexp[2]) is tuple
             if t1 and t2:
-                if len(tuple_[1]) > 2 or len(tuple_[2]) > 2:
+                if len(sexp[1]) > 2 or len(sexp[2]) > 2:
                     return True
-            elif t1 and len(tuple_[1]) > 3:
-                return true
-            elif t2 and len(tuple_[2]) > 3:
-                return true
+            elif t1 and len(sexp[1]) > 3:
+                return True
+            elif t2 and len(sexp[2]) > 3:
+                return True
         return False
 
-    def format_value(self, localIndent=0, depth=0, tuple_=None):#, LID=''):
-        if tuple_ is None:
-            tuple_ = self._tuple
-            #from IPython import embed
-            #import sys
-            #embed()
-            #sys.exit(0)
-
+    def format_value(self, sexp, localIndent=0, depth=0):
         out = ''
-        if tuple_:
-            newline = tuple_[0] in self.format_nl or self.isLongNL(tuple_)
-            indent_for_this_loop = localIndent + len('(') + len(tuple_[0]) + len(' ')  # vim fail )
+        if sexp:
+            newline = sexp[0] in self.format_nl or self.isLongNL(sexp)
+            indent_for_this_loop = localIndent + len('(') + len(sexp[0]) + len(' ')  # vim fail )
             indent_for_next_level = indent_for_this_loop
-            #indent_this = LID + '(' + tuple_[0] + ' '  # vim fail )
-            #indent_next = indent_this
-            for i, v in enumerate(tuple_):
+            for i, element in enumerate(sexp):
                 if newline and i > 1:
                     out += '\n' + ' ' * indent_for_this_loop
-                    #out += '\n' + indent_this
-                if type(v) is tuple:
-                    v = self.format_value(indent_for_next_level, depth + 1, v)#, LID=indent_next)
-                if v is not None:
-                    v = str(v)
+
+                if isinstance(element, tuple):
+                    element = self.format_value(element, indent_for_next_level, depth + 1)
+
+                if element is not None:
+                    strelement = str(element)
                     if out and out[-1] != ' ':
-                        out += ' ' + v
+                        out += ' ' + strelement
                         if i > 1 or not newline:
-                            indent_for_next_level += len(' ') + len(v) # unlike at the top v already has ( prepended if it exists
-                            #indent_next += ' ' + v
+                            # unlike at the top strelement already has ( prepended if it exists
+                            indent_for_next_level += len(' ') + len(strelement)
+
                     else:  # we are adding indents
-                        out += v
+                        out += strelement
         if out:
             return '(' + out + ')'
 
     def _repr_pretty_(self, p, cycle):
+        """ needed by pprint """
         if cycle:
-            p.text(self.__class__.__name__ + '(WAT...)')
+            p.text(self.__class__.__name__ + '(CYCLE...)')
         else:
             indent = p.output_width
             p.text(self.__repr__(indent))
 
-    def __repr__(self, indent=0):
+    def __repr__(self, indent=0, sexp=None):
         cname = self.__class__.__name__
-        _tuple = self.format_value(len(cname) + 1 + indent) 
-        return cname + f'({_tuple})'
-
-
-class ProtcParameterParser(UnitsHelper, ProtcParameter):
-
-    def __init__(self, value):
-        success, ast, rest = self._parameter_expression(value)
-        super().__init__(ast)
+        if sexp is None:
+            sexp = self
+        formatted = self.format_value(sexp, len(cname) + 1 + indent, 0) 
+        return cname + f'({formatted})'
 
 
 class LoR:
@@ -126,7 +134,7 @@ class LoR:
         self.right = right
 
     def __str__(self):
-        return f'{self.left!r}{self.op}{self.right!r}'
+        return f'{self.left}{self.op}{self.right}'
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.left!r}, {self.right!r})'
@@ -235,10 +243,11 @@ class Quantity(Expr):
         unit = f', {self.unit!r}' if self.unit else ''
         return f'{self.__class__.__name__}({self.value!r}{unit})'
 
+
 class PrefixQuantity(Quantity):
     def __repr__(self):
         unit = f', {self.unit!r}' if self.unit else ''
-        return f'{self.__class__.__name__}({self.value!r}, {self.unit!r})'
+        return f'{self.__class__.__name__}({self.value!r}{unit})'
 
     def __str__(self):
         unit = self.unit if self.unit else ''  # this case shouldn't happen but better safe than sorry
@@ -284,9 +293,15 @@ class GreaterThan(_Than, metaclass=gtclass):
 class Range(Expr):
     op = '-'
     def __init__(self, start, stop, unit=None):
+        # FIXME range has to parse values before units
+        # because range 'is' a quantity
         self.start = start.value
         self.stop = stop.value
         # FIXME match units
+        # FIXME this is where the unit does carry the
+        # prefix information rather than the quantity hrm
+        # which means that we need to treat range as a kind of quantity
+        # and have a prefix version of it
         self.unit = (start.unit
                      if start.unit is not None
                      else (stop.unit if stop.unit is not None
@@ -358,7 +373,8 @@ macro = MacroDecorator()
 class Interpreter:
 
     class _config:  # FIXME ... bad way to do this
-        failure_mode = mode.WARN
+        data_failure_mode = mode.FAIL
+        parser_failure_mode = mode.FAIL
         
     _renames = {
         '+': 'plus',
@@ -370,9 +386,9 @@ class Interpreter:
         '>': 'greater_than',
     }
 
-    def __init__(self, sexp, environment=None):
-        self.sexp = sexp
+    def __init__(self, environment=None):
         self.environment = environment
+        self.pretty_printer = SExpr()
 
     def lisp_to_python(self, lisp_identifier):
         if lisp_identifier in self._renames:
@@ -380,9 +396,15 @@ class Interpreter:
 
         return lisp_identifier.split(':', 1)[-1].replace('-', '_')
 
-    def __call__(self):
-        return self.eval(self.sexp)
+    def __call__(self, sexp):
+        return self.eval(sexp)
 
+    def pretty_print(self, expression):
+        if isinstance(expression, tuple):
+            # this is the 'reusable' version
+            print(self.pretty_printer(expression))
+        else:
+            print(expression)
 
     def eval(self, expression):
         if isinstance(expression, tuple) or isinstance(expression, list):
@@ -429,7 +451,11 @@ class _ParamParser(UnitsHelper, Interpreter):
         return type('ParamParser', (cls,), class_dict)
 
     def parse_failure(self, *args):
-        return None
+        error = exc.ParseFailure('no context to know what the expr was')
+        if self._config.parser_failure_mode == mode.FAIL:
+            raise error
+
+        return error
 
     def expr(self, sexp):
         return sexp
@@ -481,6 +507,7 @@ class _ParamParser(UnitsHelper, Interpreter):
         value = self.eval(value)
         unit_value = self.eval(unit)
         if unit and unit[0] == 'param:prefix-unit':
+            breakpoint()
             return self._PrefixQuantity(value, unit_value)
         else:
             return self._Quantity(value, unit_value)
@@ -514,11 +541,12 @@ class _ParamParser(UnitsHelper, Interpreter):
 
     def plus_or_minus(self, base, error=None):
         if error is None:
-            if self._config.failure_mode == mode.FAIL:
-                raise TypeError(f'error is a required argument for plus_or_minus '
-                                'someone is misusing the notation!')
+            e = exc.BadNotationError(f'error is a required argument for plus_or_minus '
+                                     'someone is misusing the notation!')
+            if self._config.data_failure_mode == mode.FAIL:
+                raise e
 
-            return 
+            return e
 
         return PlusOrMinus(base, error)
 
@@ -597,6 +625,15 @@ class Protc(Interpreter):
         pass
 
 
+# the parsing api for external consumption
+
+class UnitsParser(UnitsHelper, SExpr):
+
+    def __new__(cls, string_to_parse):
+        success, ast, rest = cls._parameter_expression(string_to_parse)
+        super().__new__(ast)
+
+
 # pretty printing config
 def _pprint_operation(self, object, stream, indent, allowance, context, level):
     #value = object.format_value(indent)  # how the heck does this work?
@@ -604,7 +641,7 @@ def _pprint_operation(self, object, stream, indent, allowance, context, level):
     stream.write(value)
 
 
-pprint.PrettyPrinter._dispatch[ProtcParameter.__repr__] = _pprint_operation
+pprint.PrettyPrinter._dispatch[SExpr.__repr__] = _pprint_operation
 
 
 # default configuration interpreters
@@ -616,4 +653,3 @@ ParamParser = _ParamParser.bindPython(Unit,
                                       Range,
                                       Dilution,
                                       Dimensions)
-ProtcParameter._ParamParser = ParamParser

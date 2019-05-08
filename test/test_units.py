@@ -25,6 +25,9 @@ class TestUnit(unittest.TestCase):
         assert unit('R') == (True, ('param:unit', "'ohms"), ''), 'R did not parse to ohms'
         assert unit('RCF') == (True, ('param:unit', "'relative-centrifugal-force"), ''), 'RCF did not parse to relative-centrifugal-force'
 
+    def test_numerical_aperature(self):
+        assert unit('N') == (True, ('param:unit', "'newtons"), ''), 'N did not parse to newtons'
+        assert unit('NA') == (True, ('param:unit', "'numerical-aperature"), ''), 'NA did not parse to numerical-aperature'
 
 class TestExpr(unittest.TestCase):
     def test_prefix_infix_expr(self):
