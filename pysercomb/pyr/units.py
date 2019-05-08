@@ -347,11 +347,11 @@ class PlusOrMinus(Range):
     op = _plus_or_minus
 
 
-class Dilution(LoR):
+class Dilution(Expr, LoR):
     op = ':'
 
 
-class Dimensions:
+class Dimensions(Expr):
     op = 'x'
     def __init__(self, *dims, unit=None):
         unit = set(d.unit for d in itertools.chain(dims, (unit,)) if d and d.unit is not None)
@@ -677,7 +677,8 @@ class UnitsParser(UnitsHelper, SExpr):
 
     def __new__(cls, string_to_parse):
         success, ast, rest = cls._parameter_expression(string_to_parse)
-        super().__new__(ast)
+        self = super().__new__(cls, ast)
+        return self
 
 
 # pretty printing config
