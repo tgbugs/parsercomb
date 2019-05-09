@@ -1,4 +1,5 @@
 """ Python class representation for the output of the units parser. """
+import copy
 import pprint
 import itertools
 from enum import Enum
@@ -12,6 +13,18 @@ from protcur.config import __script_folder__ as pasf
 def chain(*tups):
     for t in tups:
         yield from reversed(t)  # reversed because the piority ordering is inverted
+
+
+class ImplFactoryHelper:
+    @classmethod
+    def bindImpl(cls, class_name, *classes):
+        """ returns a new interpreter bound to a particular implementation of
+            Unit
+
+            specify the underlying python classes that the parser targets
+            this is sort of like being able to change the #lang you are using """
+        class_dict = {'_' + cls.__name__:cls for cls in classes}
+        return type(class_name, (cls,), class_dict)
 
 
 class UnitsHelper:
@@ -132,7 +145,41 @@ class SExpr(tuple):
         return cname + f'({formatted})'
 
 
-class LoR:
+class Expr:
+    op = None
+
+    def __add__(self, other):
+        return self._Add(self, other)
+
+    def __iadd__(self, other):
+        return self.__add__(other)
+
+    def __mul__(self, other):
+        return self._Mul(self, other)
+
+    def __imul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        return self._Div(self, other)
+
+    def __pow__(self, other):
+        return self._Exp(self, other)
+
+    def __lt__(self, other):
+        if other is LessThan:
+            return LessThan(None, other)
+        else:
+            raise NotImplementedError
+
+    def __gt__(self, other):
+        if other is GreaterThan:
+            return GreaterThan(None, other)
+        else:
+            raise NotImplementedError
+
+
+class LoR(Expr):
     op = None
     def __init__(self, left, right):
         self.left = left
@@ -143,6 +190,28 @@ class LoR:
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.left!r}, {self.right!r})'
+
+
+class Add(LoR):
+    op = '+'
+
+
+class Mul(LoR):
+    op = '*'
+
+
+class Div(LoR):
+    op = '/'
+
+
+class Exp(LoR):
+    op = '^'
+
+
+Expr._Add = Add
+Expr._Mul = Mul
+Expr._Div = Div
+Expr._Exp = Exp
 
 
 class UnitSuffix(UnitsHelper, str):
@@ -156,7 +225,7 @@ class UnitSuffix(UnitsHelper, str):
             return None
 
 
-class Unit:
+class Unit(Expr):
 
     full = ('weeks', 'days', 'months', 'years')
 
@@ -198,6 +267,9 @@ class Unit:
     def __hash__(self):
         return hash((hash(self.__class__), self.unit, self.prefix))
 
+    def json(self):
+        return str(self)
+
 
 class PrefixUnit(Unit):
     """ There are some use cases for the unit also carrying this information """
@@ -209,63 +281,9 @@ class PrefixUnit(Unit):
             super().__init__(unit, prefix)
 
 
-class Expr:
-    op = None
-
-    def __add__(self, other):
-        return self._Add(self, other)
-
-    def __iadd__(self, other):
-        return self.__add__(other)
-
-    def __mul__(self, other):
-        return self._Mul(self, other)
-
-    def __imul__(self, other):
-        return self.__mul__(other)
-
-    def __truediv__(self, other):
-        return self._Div(self, other)
-
-    def __pow__(self, other):
-        return self._Exp(self, other)
-
-    def __lt__(self, other):
-        if other is LessThan:
-            return LessThan(None, other)
-        else:
-            raise NotImplementedError
-
-    def __gt__(self, other):
-        if other is GreaterThan:
-            return GreaterThan(None, other)
-        else:
-            raise NotImplementedError
-
-
-class Add(LoR, Expr):
-    op = '+'
-
-
-class Mul(LoR, Expr):
-    op = '*'
-
-
-class Div(LoR, Expr):
-    op = '/'
-
-
-class Exp(LoR, Expr):
-    op = '^'
-
-
-Expr._Add = Add
-Expr._Mul = Mul
-Expr._Div = Div
-Expr._Exp = Exp
-
-
 class Quantity(Expr):
+
+    tag_suffix = 'quantity'
 
     def __init__(self, value, unit=None):
         self.value = value
@@ -284,8 +302,14 @@ class Quantity(Expr):
         print(repr(self), repr(other))
         return self.value == other.value and self.unit == other.unit
 
+    def json(self):
+        return dict(type=self.tag_suffix, value=self.value, unit=self.unit)
+
 
 class PrefixQuantity(Quantity):
+
+    tag_suffix = 'prefix-quantity'
+
     def __repr__(self):
         unit = f', {self.unit!r}' if self.unit else ''
         return f'{self.__class__.__name__}({self.value!r}{unit})'
@@ -334,6 +358,8 @@ class GreaterThan(_Than, metaclass=gtclass):
 class Range(Expr):
     """ This is a non-homogenous range, units may differ """
     op = '-'
+    tag = 'range'
+
     def __init__(self, start, stop):
         self.start = start
         self.stop = stop
@@ -348,12 +374,17 @@ class Range(Expr):
     def __repr__(self):
         return f'{self.__class__.__name__}({self.start!r}, {self.stop!r})'
 
+    def json(self):
+        return dict(type=self.tag,
+                    start=self.start.json(),
+                    stop=self.stop.json())
 
 class PlusOrMinus(Range):
     op = _plus_or_minus
+    tag = 'plus-or-minus'
 
 
-class Dilution(Expr, LoR):
+class Dilution(LoR):
     op = ':'
 
 
@@ -463,7 +494,7 @@ class Interpreter:
 
 macro = MacroDecorator()
 @macro.has_macros
-class _ParamParser(UnitsHelper, Interpreter):
+class _ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
     """ definitions for the param: namespace """
 
     _Unit = None
@@ -473,16 +504,6 @@ class _ParamParser(UnitsHelper, Interpreter):
     _Range = None
     _Dilution = None
     _Dimensions = None
-
-    @classmethod
-    def bindPython(cls, *classes):
-        """ returns a new interpreter bound to a particular implementation of
-            Unit
-
-            specify the underlying python classes that the parser targets
-            this is sort of like being able to change the #lang you are using """
-        class_dict = {'_' + cls.__name__:cls for cls in classes}
-        return type('ParamParser', (cls,), class_dict)
 
     def parse_failure(self, *args):
         e = exc.ParseFailure('no context to know what the expr was')
@@ -679,21 +700,27 @@ class Protc(Interpreter):
 # default configuration interpreters
 # override these after import if there are custom formats that you want export to
 UnitsHelper.setup()
-ParamParser = _ParamParser.bindPython(Unit,
-                                      PrefixUnit,
-                                      Quantity,
-                                      PrefixQuantity,
-                                      Range,
-                                      Dilution,
-                                      Dimensions)
+ParamParser = _ParamParser.bindImpl('ParamParser',
+                                    Unit,
+                                    PrefixUnit,
+                                    Quantity,
+                                    PrefixQuantity,
+                                    Range,
+                                    Dilution,
+                                    Dimensions)
 
 # the parsing api for external consumption
 
-class UnitsParser(UnitsHelper, SExpr):  # FIXME this needs to be extnesible as well
+class _UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs to be extnesible as well
 
-    def __new__(cls, string_to_parse):
-        success, sexp, rest = cls._parameter_expression(string_to_parse)
+    _ParamParser = None
+
+    def __new__(cls, string_to_parse, sexp=None):
+        if sexp is None:  # needed for copy to work happily
+            success, sexp, rest = cls._parameter_expression(string_to_parse)
+
         self = super().__new__(cls, sexp)
+        self._input = string_to_parse
         return self
 
     def __call__(self, string_to_parse):
@@ -701,7 +728,24 @@ class UnitsParser(UnitsHelper, SExpr):  # FIXME this needs to be extnesible as w
         pass
 
     def asPython(self):
-        return ParamParser()(self)  # FIXME ... needs to be more flexible
+        return self._ParamParser()(self)  # FIXME ... needs to be more flexible
+
+    def __copy__(self):
+        cls = self.__class__
+        result = cls.__new__(cls, self._input, sexp=self)
+        result.__dict__.update(self.__dict__)
+        return result
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls, self._input, sexp=self)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, copy.deepcopy(v, memo))
+        return result
+
+
+UnitsParser = _UnitsParser.bindImpl('UnitsParser', ParamParser)
 
 
 # pretty printing config
