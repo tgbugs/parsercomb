@@ -30,18 +30,18 @@ symbol = OR(char, digit, COMP('-'), COMP('_'), colon, COMP('*'),
                    whitespace1,
                    point,
                    EOF)))
-NIL = COMP("'()")
+#NIL = RETVAL(COMP("'()"), None)
 num_literal = OR(scientific_notation, float_, int_)
 cons_pair = COMPOSE(open_paren, JOINT(SKIP(exp, point), SKIP(exp, close_paren)))
-literal = OR(string, num_literal, cons_pair, NIL)
+literal = OR(num_literal, string)
 atom = joinstr(MANY1(symbol))
 identifier = LEXEME(atom)
 def _quote(p):
-    return OR(NIL, COMPOSE(quote_symbol, _exp))(p)
+    return OR(RETVAL(COMP('()'), None), cons_pair, COMPOSE(quote_symbol, _exp))(p)
 quote = LEXEME(_quote)
 def sexp(p):
     return sexp_inner(p)
-_exp = LEXEME(OR(identifier, quote, literal, sexp, NIL))
+_exp = LEXEME(OR(literal, identifier, quote, sexp))
 sexp_inner = COMPOSE(open_paren, SKIP(MANY1(exp), close_paren))
 lang_line = JOINT(COMP('#lang'), SKIP(MANY(NOT(COMP('\n'))), COMP('\n')))
 racket_doc = COMPOSE(AT_MOST_ONE(lang_line), MANY(exp))

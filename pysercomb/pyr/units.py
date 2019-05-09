@@ -16,6 +16,8 @@ def chain(*tups):
 
 
 class ImplFactoryHelper:
+    # FIXME NOTE
+    # UnitsParser is a case where
     @classmethod
     def bindImpl(cls, class_name, *classes):
         """ returns a new interpreter bound to a particular implementation of
@@ -23,8 +25,13 @@ class ImplFactoryHelper:
 
             specify the underlying python classes that the parser targets
             this is sort of like being able to change the #lang you are using """
-        class_dict = {'_' + cls.__name__:cls for cls in classes}
-        return type(class_name, (cls,), class_dict)
+        if class_name is None:
+            for cls_ in classes:
+                setattr(cls, '_' + cls_.__name__, cls_)
+
+        else:
+            class_dict = {'_' + cls.__name__:cls for cls in classes}
+            return type(class_name, (cls,), class_dict)
 
 
 class UnitsHelper:
@@ -45,6 +52,9 @@ class UnitsHelper:
         for dict_ in dicts:
             gs.update(dict_)
 
+        cls.si_exponents = {prefix:exp for prefix, exp in prefixes_si_exponents}
+        cls.si_exponents_inv = {e:p for p, e in cls.si_exponents.items()}
+
         cls.unit_dict = {unit:abbrev for abbrev, unit in
                           chain(units_si,
                                 units_extra,
@@ -61,6 +71,7 @@ class UnitsHelper:
                                 #units_dimensionless_prefix))
 
         cls.prefix_dict = {prefix:abbrev for abbrev, prefix in prefixes_si}
+        cls.prefix_dict_inv = {a:p for a, p in prefixes_si}
 
 
 class SExpr(tuple):
@@ -147,7 +158,7 @@ class SExpr(tuple):
         return cname + f'({formatted})'
 
 
-class Expr:
+class Expr(UnitsHelper, ImplFactoryHelper):
     op = None
 
     def __add__(self, other):
@@ -187,6 +198,10 @@ class LoR(Expr):
         self.left = left
         self.right = right
 
+    def simplified(self):
+        # TODO
+        return None
+
     def __str__(self):
         return f'{self.left}{self.op}{self.right}'
 
@@ -196,27 +211,71 @@ class LoR(Expr):
 
 class Add(LoR):
     op = '+'
+    _op = '__add__'
 
 
 class Mul(LoR):
     op = '*'
+    _op = '__mul__'
 
 
 class Div(LoR):
     op = '/'
+    _op = '__truediv__'
 
 
 class Exp(LoR):
     op = '^'
+    _op = '__pow__'
 
 
-Expr._Add = Add
-Expr._Mul = Mul
-Expr._Div = Div
-Expr._Exp = Exp
+Expr.bindImpl(None, Add, Mul, Div, Exp)
 
 
-class UnitSuffix(UnitsHelper, str):
+class SIPrefix(UnitsHelper, str):
+    def __new__(cls, prefix):
+        if prefix is None:
+            prefix = ''
+
+        return super().__new__(cls, prefix)
+
+    # TODO allow init from short or from long
+    def __truediv__(self, other):
+        return self.prefix(self.exponent - other.exponent)  # FIXME ... -?
+
+    def __mul__(self, other):
+        return self.prefix(self.exponent + other.exponent)
+
+    @property
+    def exponent(self):
+        return self.si_exponents[self.fullName]
+
+    def prefix(self, exponent):
+        # FIXME this requries the ability to instantiate from long name
+        return self.__class__(self.si_exponents_inv[exponent])
+
+    def to_base(self, prefixed_value):
+        """ return a value in this unit in the base unit """
+        return prefixed_value * 10 ** self.exponent
+
+    def from_base(self, base_value):
+        # FIXME come up with clearer naming
+        return base_value / 10 ** self.exponent
+
+    @property
+    def fullName(self):
+        # these should always be known
+        if not self:
+            return
+
+        if self in self.prefix_dict:
+            return self
+        else:
+            return self.prefix_dict_inv[self]
+
+
+class UnitSuffix(Expr, str):
+    # TODO allow init from short or from long
     @property
     def fullName(self):
         try:
@@ -233,7 +292,7 @@ class Unit(Expr):
 
     def __init__(self, unit, prefix=None):
         self.unit = UnitSuffix(unit)
-        self.prefix = prefix
+        self.prefix = SIPrefix(prefix)
 
     def __str__(self):
         prefix = self.prefix if self.prefix else ''
@@ -247,20 +306,24 @@ class Unit(Expr):
         return repr(str(self))
 
     def __mul__(self, other):
-        return self.__class__(f'{self}*{other}')
+        return self._Mul(self, other)
+        #return self.__class__(f'{self}*{other}')
 
     def __imul__(self, other):
         return self.__mul__(other)
 
     def __rtruediv__(self, other):
-        return self.__class__(f'{self}/{other}')
+        return self._Div(self, other)
+        #return self.__class__(f'{self}/{other}')
 
     def __pow__(self, other):
-        return self.__class__(f'{self}^{other}')
+        return self._Exp(self, other)
+        #return self.__class__(f'{self}^{other}')
 
     def __truediv__(self, other):
         # TODO do the unit math ...
-        return self.__class__(f'{self}/{other}')
+        return self._Div(self, other)  # hah, preserve composability
+        #return self.__class__(f'{self}/{other}')
 
     def __eq__(self, other):
         # TODO do the unit math
@@ -503,7 +566,7 @@ class Interpreter:
 
 macro = MacroDecorator()
 @macro.has_macros
-class _ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
+class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
     """ definitions for the param: namespace """
 
     _Unit = None
@@ -708,18 +771,18 @@ class Protc(Interpreter):
 # default configuration interpreters
 # override these after import if there are custom formats that you want export to
 UnitsHelper.setup()
-ParamParser = _ParamParser.bindImpl('ParamParser',
-                                    Unit,
-                                    PrefixUnit,
-                                    Quantity,
-                                    PrefixQuantity,
-                                    Range,
-                                    Dilution,
-                                    Dimensions)
+ParamParser.bindImpl(None,
+                     Unit,
+                     PrefixUnit,
+                     Quantity,
+                     PrefixQuantity,
+                     Range,
+                     Dilution,
+                     Dimensions)
 
 # the parsing api for external consumption
 
-class _UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs to be extnesible as well
+class UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs to be extnesible as well
 
     _ParamParser = None
 
@@ -755,7 +818,7 @@ class _UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs t
         return result
 
 
-UnitsParser = _UnitsParser.bindImpl('UnitsParser', ParamParser)
+UnitsParser.bindImpl(None, ParamParser)
 
 
 # pretty printing config
