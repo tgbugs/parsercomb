@@ -75,12 +75,13 @@ class SExpr(tuple):
     def __call__(self, sexp, indent=0):
         return self.__repr__(indent, sexp)
 
-    def isLongNL(self, sexp):
+    @classmethod
+    def isLongNL(cls, sexp):
         # and right here is where you want let
         # you could skip this branch entirely except that
         # it is much harder to read when you can't assign
         # t1 and t2 but you have to assign them after the branch
-        if sexp[0] not in self.format_nl_long:
+        if sexp[0] not in cls.format_nl_long:
             return
 
         _op, s1, s2 = sexp
@@ -91,7 +92,7 @@ class SExpr(tuple):
                 t1 and len(s1) > 3 or
                 t2 and len(s2) > 3)
 
-        if sexp[0] in self.format_nl_long:
+        if sexp[0] in cls.format_nl_long:
             t1 = type(sexp[1]) is tuple
             t2 = type(sexp[2]) is tuple
             if t1 and t2:
@@ -103,10 +104,11 @@ class SExpr(tuple):
                 return True
         return False
 
-    def format_value(self, sexp, localIndent=0, depth=0):
+    @classmethod
+    def format_value(cls, sexp, localIndent=0, depth=0):
         out = ''
         if sexp:
-            newline = sexp[0] in self.format_nl or self.isLongNL(sexp)
+            newline = sexp[0] in cls.format_nl or cls.isLongNL(sexp)
             indent_for_this_loop = localIndent + len('(') + len(sexp[0]) + len(' ')  # vim fail )
             indent_for_next_level = indent_for_this_loop
             for i, element in enumerate(sexp):
@@ -114,7 +116,7 @@ class SExpr(tuple):
                     out += '\n' + ' ' * indent_for_this_loop
 
                 if isinstance(element, tuple):
-                    element = self.format_value(element, indent_for_next_level, depth + 1)
+                    element = cls.format_value(element, indent_for_next_level, depth + 1)
 
                 if element is not None:
                     strelement = str(element)
@@ -461,7 +463,14 @@ class Interpreter:
         return lisp_identifier.split(':', 1)[-1].replace('-', '_')
 
     def __call__(self, sexp):
-        return self.eval(sexp)
+        try:
+            python_repr = self.eval(sexp)
+        except exc.ParseFailure:
+            # FIXME this wrapping the top level in an exception handler ... tisk tisk (hah)
+            raise exc.ParseFailure(sexp._input)
+
+        python_repr._sexp = sexp
+        return python_repr
 
     def pretty_print(self, expression):
         if isinstance(expression, tuple):
@@ -506,11 +515,10 @@ class _ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
     _Dimensions = None
 
     def parse_failure(self, *args):
-        e = exc.ParseFailure('no context to know what the expr was')
+        e = exc.ParseFailure
         if self._config.parser_failure_mode == mode.FAIL:
             raise e
 
-        logd.error(str(e))
         return e
 
     def expr(self, sexp):
@@ -714,6 +722,8 @@ ParamParser = _ParamParser.bindImpl('ParamParser',
 class _UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs to be extnesible as well
 
     _ParamParser = None
+
+    ParseFailure = exc.ParseFailure
 
     def __new__(cls, string_to_parse, sexp=None):
         if sexp is None:  # needed for copy to work happily
