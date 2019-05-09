@@ -364,7 +364,7 @@ class Quantity(Expr):
 
     def __eq__(self, other):
         # TODO do the unit math
-        print(repr(self), repr(other))
+        #print(repr(self), repr(other))
         return self.value == other.value and self.unit == other.unit
 
     def __add__(self, other):
@@ -546,7 +546,7 @@ class Interpreter:
             # FIXME this wrapping the top level in an exception handler ... tisk tisk (hah)
             raise exc.ParseFailure(sexp._input)
 
-        print(repr(python_repr))
+        #print(repr(python_repr))
         python_repr._sexp = sexp
         return python_repr
 
