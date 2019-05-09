@@ -75,3 +75,9 @@ class TestUnitsParser:
         assert isinstance(ten_mega_liters, SExpr)
         ap = ten_mega_liters.asPython()
         assert ap == Quantity(10, 'ML')
+
+
+class TestQuantity:
+    def test_add(self):
+        q2 = Quantity(1) + Quantity(2)
+        assert q2 == Quantity(3)

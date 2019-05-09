@@ -367,6 +367,20 @@ class Quantity(Expr):
         print(repr(self), repr(other))
         return self.value == other.value and self.unit == other.unit
 
+    def __add__(self, other):
+        if isinstance(other, Unit) and self.unit is None:
+            return self.__class__(self.value, other)
+        elif isinstance(other, Quantity) and self.unit.unit == other.unit.unit:
+            sv = self.to_base()
+            ov = other.to_base()
+            nv = self.unit.prefix.from_base(sv + ov)  # TODO check this is correct
+            return self.__class__(nv, self.unit)
+        else:
+            raise TypeError(f'{self!r} + {other!r} failed because other is a {type(other)}')
+
+    def to_base(self):
+        return self.prefix.to_base(self.value)
+
     def json(self):
         return dict(type=self.tag_suffix, value=self.value, unit=self.unit)
 
@@ -532,6 +546,7 @@ class Interpreter:
             # FIXME this wrapping the top level in an exception handler ... tisk tisk (hah)
             raise exc.ParseFailure(sexp._input)
 
+        print(repr(python_repr))
         python_repr._sexp = sexp
         return python_repr
 
