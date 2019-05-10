@@ -268,7 +268,7 @@ class LoR(Oper):
             # TODO triple conv as well
             value_ = getattr(l.value, self._op)(r.value)
             #value, unit_ = getattr(l.unit, self._op)(r.unit).asRdf(value_)
-            out = getattr(l.unit, self._op)(r.unit).asRdf()
+            out, *_ = getattr(l.unit, self._op)(r.unit).asRdf()
             print(out)  # TODO
             #print(unit__)
             #value, unit_ = unit__(value_)
@@ -289,6 +289,10 @@ class LoR(Oper):
                 yield from unit_rdf
             else:
                 yield unit_rdf
+
+        elif isinstance(l, UnitSuffix):
+            yield f'{l}{self.op}{r}'  # FIXME TODO
+            return
 
         else:
             breakpoint()
@@ -425,10 +429,14 @@ class Unit(Expr):
         return rdflib.Literal(self.prefix.to_base(value)), base_unit
 
 
-class UnitSuffix(Unit, strc):
+class UnitSuffix(Expr, strc):
     @property
     def unit(self):
         return self
+
+    @property
+    def prefix(self):
+        return None
 
     @property
     def fullName(self):
