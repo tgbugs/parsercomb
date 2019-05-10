@@ -1,3 +1,4 @@
+from functools import wraps
 import logging
 
 
@@ -24,3 +25,11 @@ def coln(n, iterable):
     """ Return an iterator on the nth column. """
     for rec in iterable:
         yield rec[n]
+
+
+def express(generator_function):
+    @wraps(generator_function)
+    def tuplify(*args, **kwargs):
+        return tuple(generator_function(*args, **kwargs))
+
+    return tuplify

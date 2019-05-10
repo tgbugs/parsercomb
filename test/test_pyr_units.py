@@ -1,8 +1,10 @@
 import pprint
 import unittest
+import rdflib
 from pysercomb import exceptions as exc
 from pysercomb.parsers.units import DEGREES_FEAR
 from pysercomb.pyr.units import ParamParser, SExpr, Expr, UnitsParser, Quantity
+from pysercomb.pyr import units as pyru
 from .common import *
 
 evil_white_dot = DEGREES_FEAR.decode()
@@ -14,7 +16,7 @@ class TestParam(unittest.TestCase):
         fails = []
         errs = []
         roundtrip = []
-        paramparser = ParamParser()
+        paramparser = pyru.ParamParser()
         for text, ir in zip(test_all, parsed):
             try:
                 unit = paramparser(ir)
@@ -44,7 +46,7 @@ class TestParam(unittest.TestCase):
     def test_roundtrip(self):
         # mostly seeing order inversion issues and unit vs unit-expression
         roundtrip = []
-        paramparser = ParamParser()
+        paramparser = pyru.ParamParser()
         for text, ir in zip(test_all, parsed):
             try:
                 unit = paramparser(ir)
@@ -81,3 +83,24 @@ class TestQuantity:
     def test_add(self):
         q2 = Quantity(1) + Quantity(2)
         assert q2 == Quantity(3)
+
+
+class TestUnits(unittest.TestCase):
+    def test_export(self):
+        a = pyru.UnitsParser('10 mm').asPython()
+        aa = list(a.asRdf(rdflib.BNode()))
+        b = pyru.UnitsParser('1 mg/kg').asPython()
+        c = list(b.asRdf(rdflib.BNode()))
+        d = pyru.UnitsParser('100 lm / 1000 W').asPython()
+        e = list(d.asRdf(rdflib.BNode()))
+        f = pyru.UnitsParser('10010.010110 g / 10mg').asPython()
+        g = list(f.asRdf(rdflib.BNode()))
+        r = pyru.UnitsParser('1-100T').asPython()
+        s = list(r.asRdf(rdflib.BNode()))
+        w = pyru.UnitsParser('9-14 weeks').asPython()
+        x = list(w.asRdf(rdflib.BNode()))
+        breakpoint()
+
+    def test_brokens(self):
+        should_ser = pyru.UnitsParser('123 kHz / 1 J*K').asPython()
+        should_ser.ttl

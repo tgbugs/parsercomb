@@ -5,9 +5,22 @@ import itertools
 from enum import Enum
 from pathlib import Path
 from pysercomb import exceptions as exc
-from pysercomb.utils import log, logd
+from pysercomb.utils import log, logd, express
+from pysercomb.types import TypeCaster, intc, strc
 from pysercomb.parsers.units import get_unit_dicts, _plus_or_minus, make_unit_parser
 from protcur.config import __script_folder__ as pasf
+
+try:
+    import rdflib
+    # FIXME do not want circular imports incoming ...
+    from pyontutils.namespaces import TEMP, OntCuries
+    from pyontutils.closed_namespaces import rdf, owl, rdfs
+    from nifstd_tools.methods.core import prot, proc, tech, asp, dim, unit
+    xsd = rdflib.XSD
+    a = rdf.type
+    OntCuries({'unit':str(unit)})
+except ImportError:
+    pass  # exception logged in rdftypes
 
 
 def chain(*tups):
@@ -52,10 +65,11 @@ class UnitsHelper:
         for dict_ in dicts:
             gs.update(dict_)
 
-        cls.si_exponents = {prefix:exp for prefix, exp in prefixes_si_exponents}
+        cls.si_exponents = {prefix if prefix is None else strc(prefix):intc(exp)
+                            for prefix, exp in prefixes_si_exponents}
         cls.si_exponents_inv = {e:p for p, e in cls.si_exponents.items()}
 
-        cls.unit_dict = {unit:abbrev for abbrev, unit in
+        cls.unit_dict = {strc(unit):strc(abbrev) for abbrev, unit in
                           chain(units_si,
                                 units_extra,
                                 units_extra_prefix,
@@ -70,8 +84,8 @@ class UnitsHelper:
                         #chain(units_extra_prefix,
                                 #units_dimensionless_prefix))
 
-        cls.prefix_dict = {prefix:abbrev for abbrev, prefix in prefixes_si}
-        cls.prefix_dict_inv = {a:p for a, p in prefixes_si}
+        cls.prefix_dict = {strc(prefix):strc(abbrev) for abbrev, prefix in prefixes_si}
+        cls.prefix_dict_inv = {p:a for a, p in cls.prefix_dict.items()}
 
 
 class SExpr(tuple):
@@ -191,22 +205,94 @@ class Expr(UnitsHelper, ImplFactoryHelper):
         else:
             raise NotImplementedError
 
+    #@express
+    def asRdf(self):
+        yield from self.asRdf(rdflib.BNode())
 
-class LoR(Expr):
+    @property
+    def ttl(self):
+        graph = rdflib.Graph()
+        OntCuries.populate(graph)
+        [graph.add(t) for t in self.asRdf()]
+        return graph.serialize(format='nifttl')
+
+
+class Oper(Expr):
+    """ Operators """
+
+
+class LoR(Oper):
     op = None
     def __init__(self, left, right):
         self.left = left
         self.right = right
 
     def simplified(self):
-        # TODO
-        return None
+        l = self.left
+        r = self.right
+        value_ = getattr(l.value, self._op)(r.value)
+        unit__ = getattr(l.unit, self._op)(r.unit)
+        value, unit_ = unit__(value_)
 
     def __str__(self):
         return f'{self.left}{self.op}{self.right}'
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.left!r}, {self.right!r})'
+
+    @property
+    def unit(self):
+        l = self.left
+        r = self.right
+        return (getattr(l.unit, self._op)(r.unit)
+                if l.unit and r.unit
+                else (l.unit if l.unit
+                      else (r.unit if r.unit else Unit(None, None))))
+
+    @property
+    def prefix(self):
+        return self.unit.prefix
+
+    @express
+    def asRdf(self, subject_or_value=None):
+        l = self.left
+        r = self.right
+        #j#jif subject_or_value is None:
+            #jif isinstance(l, Unit):
+                #jl + r
+                #yield rdflib.Literal(f'{l}{self.op}{r}')
+                #return
+
+        if isinstance(l, Quantity):
+            subject = subject_or_value
+            # TODO triple conv as well
+            value_ = getattr(l.value, self._op)(r.value)
+            #value, unit_ = getattr(l.unit, self._op)(r.unit).asRdf(value_)
+            out = getattr(l.unit, self._op)(r.unit).asRdf()
+            print(out)  # TODO
+            #print(unit__)
+            #value, unit_ = unit__(value_)
+
+            yield subject, TEMP.hasValue, value.asRdf()
+            yield subject, TEMP.hasUnit, unit_
+
+        elif isinstance(l, Unit):
+            # FIXME everything except the rdf conversion should go to pyr
+            value = subject_or_value
+            prefix = getattr(l.prefix, self._op)(r.prefix)
+            unit_ = getattr(l.unit, self._op)(r.unit)
+            unit_rdf = unit_.asRdf()
+            if value is not None:
+                base_value = TypeCaster.cast(prefix.to_base(value))  #  FIXME I think __pow__ on 10 is what causes the issue
+                yield base_value.asRdf()
+            if isinstance(unit_, self.__class__):
+                yield from unit_rdf
+            else:
+                yield unit_rdf
+
+        else:
+            breakpoint()
+            raise ValueError(subject_or_value)
 
 
 class Add(LoR):
@@ -232,7 +318,7 @@ class Exp(LoR):
 Expr.bindImpl(None, Add, Mul, Div, Exp)
 
 
-class SIPrefix(UnitsHelper, str):
+class SIPrefix(UnitsHelper, strc):
     def __new__(cls, prefix):
         if prefix is None:
             prefix = ''
@@ -248,7 +334,7 @@ class SIPrefix(UnitsHelper, str):
 
     @property
     def exponent(self):
-        return self.si_exponents[self.fullName]
+        return self.si_exponents[self.fullName if self else None]
 
     def prefix(self, exponent):
         # FIXME this requries the ability to instantiate from long name
@@ -266,7 +352,7 @@ class SIPrefix(UnitsHelper, str):
     def fullName(self):
         # these should always be known
         if not self:
-            return
+            return self
 
         if self in self.prefix_dict:
             return self
@@ -274,25 +360,22 @@ class SIPrefix(UnitsHelper, str):
             return self.prefix_dict_inv[self]
 
 
-class UnitSuffix(Expr, str):
-    # TODO allow init from short or from long
-    @property
-    def fullName(self):
-        try:
-            return self.unit_dict_inv[self]
-        except KeyError:
-            # FIXME we need an internal representation for composed units
-            # but not today!
-            return None
-
-
 class Unit(Expr):
 
     full = ('weeks', 'days', 'months', 'years')
 
     def __init__(self, unit, prefix=None):
-        self.unit = UnitSuffix(unit)
+        if prefix is not None and not isinstance(unit, Unit):
+            unit = self.__class__(unit)
+        else:
+            unit = UnitSuffix(unit)
+
+        self.unit = unit
         self.prefix = SIPrefix(prefix)
+
+    @property
+    def fullName(self):
+        return self.prefix.fullName + self.unit.fullName
 
     def __str__(self):
         prefix = self.prefix if self.prefix else ''
@@ -335,6 +418,28 @@ class Unit(Expr):
     def json(self):
         return str(self)
 
+    def asRdf(self, value):
+        base_unit = self.unit.fullName.asRdf()
+        # FIXME this would be so much easier if i just
+        # implemented everything in one place ...
+        return rdflib.Literal(self.prefix.to_base(value)), base_unit
+
+
+class UnitSuffix(Unit, strc):
+    @property
+    def unit(self):
+        return self
+
+    @property
+    def fullName(self):
+        try:
+            return self.unit_dict_inv[self]
+        except KeyError:
+            try:
+                return self.unit_dict[self]
+            except KeyError:
+                return  self.__class__('') # FIXME
+
 
 class PrefixUnit(Unit):
     """ There are some use cases for the unit also carrying this information """
@@ -351,7 +456,7 @@ class Quantity(Expr):
     tag_suffix = 'quantity'
 
     def __init__(self, value, unit=None):
-        self.value = value
+        self.value = TypeCaster.cast(value)
         self.unit = unit
 
     def __str__(self):
@@ -381,8 +486,24 @@ class Quantity(Expr):
     def to_base(self):
         return self.prefix.to_base(self.value)
 
+    def prefix(self):
+        if self.unit:
+            return self.unit.prefix
+
+        return SIPrefix(None)
+
     def json(self):
         return dict(type=self.tag_suffix, value=self.value, unit=self.unit)
+
+    #@express
+    def asRdf(self, subject):
+        if not self.unit:  # FIXME ... predicate how?
+            yield subject, TEMP.hasValue, self.value.asRdf
+            return
+
+        value, unit = self.unit.asRdf(self.value)
+        yield subject, TEMP.hasValue, value
+        yield subject, TEMP.hasUnit, unit
 
 
 class PrefixQuantity(Quantity):
@@ -434,7 +555,7 @@ class GreaterThan(_Than, metaclass=gtclass):
     op = '>'
 
 
-class Range(Expr):
+class Range(Oper):
     """ This is a non-homogenous range, units may differ """
     op = '-'
     tag = 'range'
@@ -458,6 +579,37 @@ class Range(Expr):
                     start=self.start.json(),
                     stop=self.stop.json())
 
+    #@express
+    def asRdf(self, subject):
+        # TODO correctly done inside a restriction as well
+        start = self.start.value.asRdf
+        stop = self.stop.value.asRdf
+        type_ = (xsd.integer if
+                 isinstance(start.value, int) and
+                 isinstance(stop.value, int)
+                 else owl.real)
+        # FIXME need the base normalized values
+        if self.start.unit:
+            v1, type_ = self.start.unit.asRdf(start.value)
+
+        elif self.stop.unit:
+            v2, type_ = self.stop.unit.asRdf(stop.value)
+
+        def min_(s, p):
+            o = rdflib.BNode()
+            yield s, p, o
+            yield o, xsd.minInclusive, start
+
+        def max_(s, p):
+            o = rdflib.BNode()
+            yield s, p, o
+            yield o, xsd.maxInclusive, stop
+
+        yield subject, a, rdfs.Datatype
+        yield subject, owl.onDatatype, type_
+        yield from cmb.olist.serialize(subject, owl.withRestrictions, min_, max_)
+
+
 class PlusOrMinus(Range):
     op = _plus_or_minus
     tag = 'plus-or-minus'
@@ -467,7 +619,7 @@ class Dilution(LoR):
     op = ':'
 
 
-class Dimensions(Expr):
+class Dimensions(Oper):
     op = 'x'
     def __init__(self, *dims, unit=None):
         unit = set(d.unit for d in itertools.chain(dims, (unit,)) if d and d.unit is not None)
@@ -482,6 +634,9 @@ class Dimensions(Expr):
 
     def __str__(self):
         return self.op.join(str(v) for v in self.values) + (str(self.unit) if self.unit else '')
+
+    def asRdf(self):
+        self.dims
 
 
 class mode(Enum):
