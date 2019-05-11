@@ -18,6 +18,12 @@ class TypeCaster:
 
 class Converter:
 
+    def __mul__(self, other):
+        if not isinstance(self, other.__class__):
+            return other.__mul__(self)
+        else:
+            return super().__mul__
+
     def asRdf(self):
         return rdflib.Literal(self)
 

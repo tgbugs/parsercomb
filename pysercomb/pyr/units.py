@@ -4,6 +4,7 @@ import pprint
 import itertools
 from enum import Enum
 from pathlib import Path
+import pint
 from pysercomb import exceptions as exc
 from pysercomb.utils import log, logd, express
 from pysercomb.types import TypeCaster, intc, strc
@@ -21,6 +22,54 @@ try:
     OntCuries({'unit':str(unit)})
 except ImportError:
     pass  # exception logged in rdftypes
+
+
+ur = pint.UnitRegistry(system='cgs')  # 'mgs' ??
+class _Unit(ur.Unit):
+    def format_babel(self, spec='', **kwspec):
+        spec = spec or self.default_format
+
+        if '~' in spec:
+            #if self.dimensionless:
+                #return ''
+            units = UnitsContainer(dict((self._REGISTRY._get_symbol(key),
+                                         value)
+                                   for key, value in self._units.items()))
+            spec = spec.replace('~', '')
+        else:
+            units = self._units
+
+        return '%s' % (units.format_babel(spec, **kwspec))
+
+
+
+    def asRdf(self):
+        return 
+
+
+class _Quant(ur.Quantity):
+    def to_base_units(self):
+        """Return Quantity rescaled to base units
+        """
+        _, other = self._REGISTRY._get_base_units(self._units)
+
+        magnitude = self._convert_magnitude_not_inplace(other)
+
+        return self.__class__(magnitude, other)
+
+    def asRdf(self, subject):
+        if not self.units:  # FIXME ... predicate how?
+            yield subject, TEMP.hasValue, self.value.asRdf
+            return
+
+        value, unit = self.units.asRdf(self.magnitude)
+        yield subject, TEMP.hasValue, value
+        yield subject, TEMP.hasUnit, unit
+
+
+
+ur.Unit = _Unit
+ur.Quantity = _Quant
 
 
 def chain(*tups):
@@ -86,6 +135,11 @@ class UnitsHelper:
 
         cls.prefix_dict = {strc(prefix):strc(abbrev) for abbrev, prefix in prefixes_si}
         cls.prefix_dict_inv = {p:a for a, p in cls.prefix_dict.items()}
+
+        # surely there is a more elegant way ...
+        # TODO
+        cls.conversion = {'__truediv__':[],
+                          '__mul__':[]}
 
 
 class SExpr(tuple):
@@ -223,27 +277,53 @@ class Oper(Expr):
 
 class LoR(Oper):
     op = None
+    # TODO operator precidence
     def __init__(self, left, right):
+        #if [e for e in (left, right) if isinstance(e, UnitSuffix)]:
+            #raise TypeError(f'{left!r} {right!r}')
+
+        #if type(left) != type(right):  # oper vs atomic is what primarily fails this
+            #raise TypeError(f'{left!r} {right!r}')
+
         self.left = left
         self.right = right
 
+    @property
     def simplified(self):
         l = self.left
         r = self.right
-        value_ = getattr(l.value, self._op)(r.value)
-        unit__ = getattr(l.unit, self._op)(r.unit)
-        value, unit_ = unit__(value_)
+        if isinstance(l, Quantity):
+            value_ = getattr(l.value, self._op)(r.value)
+            unit__ = getattr(l.unit, self._op)(r.unit)
+        else:
+            unit = self
+        #value, unit_ = unit__(value_)
+        breakpoint()
+        return value_, unit__
 
     def __str__(self):
-        return f'{self.left}{self.op}{self.right}'
+        value = self.value
+        value = '' if value is None else value
+        return f'{value}{self.unit}'
+        #return f'{self.left}{self.op}{self.right}'
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.left!r}, {self.right!r})'
 
     @property
+    def value(self):
+        l = self.left
+        r = self.right
+        if not isinstance(l, Quantity):
+            return None
+
+        return getattr(l.value, self._op)(r.value)  # FIXME normalize wrt units ...
+
+    @property
     def unit(self):
         l = self.left
         r = self.right
+        # if we are maximally reduced ...
         return (getattr(l.unit, self._op)(r.unit)
                 if l.unit and r.unit
                 else (l.unit if l.unit
@@ -253,25 +333,24 @@ class LoR(Oper):
     def prefix(self):
         return self.unit.prefix
 
+    def reduce(self):
+        # FIXME naming ...
+        value = self.value
+        if self.value is None:
+            return self.unit
     @express
     def asRdf(self, subject_or_value=None):
+        breakpoint()
         l = self.left
         r = self.right
-        #j#jif subject_or_value is None:
-            #jif isinstance(l, Unit):
-                #jl + r
-                #yield rdflib.Literal(f'{l}{self.op}{r}')
-                #return
 
+        # FIXME order of operations
         if isinstance(l, Quantity):
             subject = subject_or_value
             # TODO triple conv as well
             value_ = getattr(l.value, self._op)(r.value)
             #value, unit_ = getattr(l.unit, self._op)(r.unit).asRdf(value_)
-            out, *_ = getattr(l.unit, self._op)(r.unit).asRdf()
-            print(out)  # TODO
-            #print(unit__)
-            #value, unit_ = unit__(value_)
+            unit_, *rest = getattr(l.unit, self._op)(r.unit).asRdf()
 
             yield subject, TEMP.hasValue, value.asRdf()
             yield subject, TEMP.hasUnit, unit_
@@ -364,33 +443,106 @@ class SIPrefix(UnitsHelper, strc):
             return self.prefix_dict_inv[self]
 
 
+class UnitSuffix(UnitsHelper, strc):  # not an expression, an atom
+
+    # FIXME if we do this it should really be intc ... and be 1 ...
+
+    def __new__(cls, suffix):
+        if suffix is None:
+            suffix = ''
+
+        return super().__new__(cls, suffix)
+
+    @property
+    def prefix(self):
+        return SIPrefix(None)
+
+    @property
+    def unit(self):
+        return strc(self)
+
+    @property
+    def fullName(self):
+        try:
+            return self.unit_dict_inv[self]
+        except KeyError:
+            try:
+                return self.unit_dict[self]
+            except KeyError:
+                return  self.__class__('') # FIXME
+
+    def __truediv__(self, other):
+        # FIXME do we really want to implement each unit as
+        # its own subclass here? no? I think not? use the lu table?
+        # no objects all the way down :/
+
+        # FIXME as pposed to having Mul Div etc all handle this for all types???
+        # I think this makes more sense this way
+        return self._lu('/', '__truediv__', other)
+
+    def __mul__(self, other):
+        # slowly progressing to more elegent ...
+        if not self:
+            return other  # (* 1)  ??
+
+        return self._lu('*', '__mul__', other)
+
+    def _lu(self, op, _op, other):
+        lut = self.conversion[_op]
+        fs = frozenset((self, other))
+        if fs in lut:
+            return lut[fs]  # TODO Unit(lut[fs]) ?
+        else:
+            # cannot reduce
+            return Unit(f'{self}{op}{other}')
+
+    def __repr__(self):
+        return f'{self.__class__.__name__} <{self}>'
+
+
 class Unit(Expr):
 
     full = ('weeks', 'days', 'months', 'years')
 
-    def __init__(self, unit, prefix=None):
-        if prefix is not None and not isinstance(unit, Unit):
-            unit = self.__class__(unit)
-        else:
-            unit = UnitSuffix(unit)
+    derived = {}
+    base = {}
 
-        self.unit = unit
-        self.prefix = SIPrefix(prefix)
+    def __init__(self, unit_symbol, prefix=None):
+        if unit_symbol in self.derived:
+            derived_unit = unit_symbol
+            base_unit = self.derived[derived_unit]
+        elif unit_symbol in self.base:
+            base_unit = base_unit
+        else:
+            base_unit = None
+
+        if not isinstance(base_unit, UnitSuffix):
+            base_unit = UnitSuffix(base_unit)
+
+        if not isinstance(prefix, SIPrefix):
+            prefix = SIPrefix(prefix)
+
+        self.prefix = prefix
+        self.base_unit = base_unit
+
+    @property
+    def suffix(self):
+        return self.derived_unit if self.derived_unit else self.base_unit
 
     @property
     def fullName(self):
-        return self.prefix.fullName + self.unit.fullName
+        return self.prefix.fullName + self.suffix.fullName
 
     def __str__(self):
         prefix = self.prefix if self.prefix else ''
-        unit = (' ' + self.unit.fullName
-                if self.unit.fullName in self.full
+        unit = (' ' + self.suffix.fullName
+                if self.suffix.fullName in self.full
                 else self.unit)
 
         return f'{prefix}{unit}'
 
     def __repr__(self):
-        return repr(str(self))
+        return f'{self.__class__.__name__} <{self}>'
 
     def __mul__(self, other):
         return self._Mul(self, other)
@@ -429,26 +581,6 @@ class Unit(Expr):
         return rdflib.Literal(self.prefix.to_base(value)), base_unit
 
 
-class UnitSuffix(Expr, strc):
-    @property
-    def unit(self):
-        return self
-
-    @property
-    def prefix(self):
-        return None
-
-    @property
-    def fullName(self):
-        try:
-            return self.unit_dict_inv[self]
-        except KeyError:
-            try:
-                return self.unit_dict[self]
-            except KeyError:
-                return  self.__class__('') # FIXME
-
-
 class PrefixUnit(Unit):
     """ There are some use cases for the unit also carrying this information """
 
@@ -480,10 +612,19 @@ class Quantity(Expr):
         #print(repr(self), repr(other))
         return self.value == other.value and self.unit == other.unit
 
-    def __add__(self, other):
+    def __mul__(self, other):
+        # a unitless 'quantity' is given units by multiplication
+        # rather than by addition (duh) given the nice algebraic
+        # properties that that gives the resulting unit
+
         if isinstance(other, Unit) and self.unit is None:
             return self.__class__(self.value, other)
-        elif isinstance(other, Quantity) and self.unit.unit == other.unit.unit:
+
+        else:
+            return super().__mul__(other)
+
+    def __add__(self, other):
+        if isinstance(other, Quantity) and self.unit.unit == other.unit.unit:
             sv = self.to_base()
             ov = other.to_base()
             nv = self.unit.prefix.from_base(sv + ov)  # TODO check this is correct
@@ -781,7 +922,8 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
         p = self._prefix(prefix)
         u = self._unit(unquoted_unit)
 
-        return self._Unit(u, p)
+        pu = ur.parse_units(p + u)
+        #return self._Unit(u, p)
 
     def _prefix(self, prefix):
         if prefix:
@@ -805,6 +947,8 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
 
         value = self.eval(value)
         unit_value = self.eval(unit)
+        return value * unit_value  # ah, just set it to 1 for no units ... fun
+
         if unit and unit[0] == 'param:prefix-unit':
             return self._PrefixQuantity(value, unit_value)
         else:

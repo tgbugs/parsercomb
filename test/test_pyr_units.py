@@ -9,6 +9,21 @@ from .common import *
 
 evil_white_dot = DEGREES_FEAR.decode()
 
+
+class TestPint(unittest.TestCase):
+    def test_all(self):
+        from pint import UnitRegistry
+        ur = UnitRegistry()
+        bads = []
+        for expr in test_all:
+            try:
+                out = ur.parse_expression(expr)
+            except BaseException as e:
+                bads.append((expr, e))
+
+        assert not bads, bads
+
+
 class TestParam(unittest.TestCase):
     def test_all(self):
         goods = []
