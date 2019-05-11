@@ -1,7 +1,11 @@
 from itertools import chain
 from pysercomb.utils import coln
 from pysercomb.parsing import *
-from pysercomb.parsers.racket import racket_doc, LEXEME
+from pysercomb.parsers.racket import racket_doc
+
+
+def LEXEME(func):
+    return COMPOSE(whitespace, SKIP(func, whitespace))
 
 
 def get_quoted_list(folderpath, filename):
@@ -263,7 +267,8 @@ def make_unit_parser(units_path=None, dicts=None):
                     FAILURE)
     #approx_comp = approximate_thing(components)
 
-    parameter_expression = components  # OR(approx_comp, components)
+
+    parameter_expression = LEXEME(components)  # OR(approx_comp, components)
 
     debug_dict = {'infix_expression': infix_expression,
                   'prefix_expression': prefix_expression,

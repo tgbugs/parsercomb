@@ -3,11 +3,7 @@ from pysercomb.parsing import *
 # racket
 def exp(p):
     return _exp(p)
-newline = COMP('\n')
-whitespace_atom = OR(COMP(' '), COMP('\t'), newline)
-#whitespace_atom = OR(_whitespace_atom, END(_whitespace_atom, EOF))
-whitespace = MANY(whitespace_atom)
-whitespace1 = MANY1(whitespace_atom)  # FIXME this is broken to negation? (extremely slow)
+
 comment = COMPOSE(whitespace,
                   COMPOSE(COMP(';'),
                           MANY(NOT(newline))))  # leave the newline intact

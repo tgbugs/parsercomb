@@ -1,6 +1,7 @@
 import unittest
 from .common import *
 from pysercomb.parsers import units
+from pysercomb.pyr import units as pyru
 
 
 class TestForms(unittest.TestCase):
@@ -59,6 +60,10 @@ class TestUnit(unittest.TestCase):
     def test_percent(self):
         msg = '% failed to parse'
         assert parameter_expression('0.3%')[1] == ('param:quantity', 0.3, ('param:unit', "'percent")), msg
+
+    def test_molar_space(self):
+        out = pyru.UnitsParser(' 0.1M')
+        assert out == ('param:quantity', 0.1, ('param:unit', "'molarity"))
 
 
 class TestExpr(unittest.TestCase):

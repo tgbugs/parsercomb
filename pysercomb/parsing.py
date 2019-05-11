@@ -35,6 +35,9 @@ __all__ = [
     'flatten1',
 
     'spaces',
+    'newline',
+    'whitespace',
+    'whitespace1',
 
     'dash_thing',
     'thing_accepted_as_a_dash',
@@ -329,6 +332,13 @@ spaces1 = MANY1(space)
 colon = COMP(':')
 exponent = COMP('^')
 point = COMP('.')
+dot = COMP('·')  # b'\xc2\xb7' MIDDLE DOT U+00B7
+
+newline = COMP('\n')
+whitespace_atom = OR(COMP(' '), COMP('\t'), newline)
+#whitespace_atom = OR(_whitespace_atom, END(_whitespace_atom, EOF))
+whitespace = MANY(whitespace_atom)
+whitespace1 = MANY1(whitespace_atom)  # FIXME this is broken to negation? (extremely slow)
 
 CROSS = b'\xc3\x97'.decode()
 cross = COMP(CROSS)

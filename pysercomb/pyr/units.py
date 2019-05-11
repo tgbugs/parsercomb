@@ -923,6 +923,7 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
         u = self._unit(unquoted_unit)
 
         pu = ur.parse_units(p + u)
+        return pu
         #return self._Unit(u, p)
 
     def _prefix(self, prefix):
@@ -930,7 +931,7 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
             prefix = prefix[1:]
             return self.prefix_dict[prefix]
         else:
-            return None
+            return ''  # FIXME pint PrefixDefinition?
 
     def _unit(self, unquoted_unit):
         return self.unit_dict[unquoted_unit]
@@ -946,6 +947,7 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
             be a macro that looks for a prefix-unit """
 
         value = self.eval(value)
+        value = value if value else 1  # multiplication by 1 for units if the unit is None we get zero?
         unit_value = self.eval(unit)
         return value * unit_value  # ah, just set it to 1 for no units ... fun
 
@@ -976,6 +978,7 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
         return numerator / denominator
         
     def exp(self, left, right):
+        breakpoint()
         return left ** right
 
     def approximately(self, expression):
@@ -1151,5 +1154,3 @@ def _pprint_operation(self, object, stream, indent, allowance, context, level):
 
 
 pprint.PrettyPrinter._dispatch[SExpr.__repr__] = _pprint_operation
-
-
