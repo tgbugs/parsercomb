@@ -172,7 +172,7 @@ def make_unit_parser(units_path=None, dicts=None):
                              _implookup))
 
     def parenthized(func): return COMPOSE(LEXEME(COMP('(')), SKIP(func, LEXEME(COMP(')'))))
-    def parOR(func): return OR(parenthized(func), func)
+    def parOR(func): return OR(func, parenthized(func))
     _C_for_temp = COMP('C')
     C_for_temp = RETVAL(_C_for_temp, BOX(_silookup['degrees-celsius']))
     temp_for_biology = JOINT(num, C_for_temp, join=False)
@@ -188,70 +188,22 @@ def make_unit_parser(units_path=None, dicts=None):
                                 COMPOSE(spaces, maybe_exponent)),
                            int_),
                      lambda v: RETURN(('^', *v)))
-    shorthand = BIND(exp_short, lambda v: RETURN(('*', *v)))  # FIXME no preceeded by an operator ...
-    embed()
-    unit_thing = OR(exp_short, shorthand, unit_atom)
+    exp_no_op = (BIND(exp_short, lambda v: RETURN(('*', v))))  # FIXME no preceeded by an operator ...
+    unit_thing = OR(exp_short, unit_atom)
     def unit_expr(thing): return parOR(unit_expr_atom)(thing)
     def unit_par(thing): return parenthized(unit_expr_atom)(thing)
     unit_suffix = OR(JOINT(COMPOSE(spaces, unit_op),
-                           COMPOSE(spaces, OR(unit_thing, unit_expr))),
-                     COMPOSE(spaces, shorthand))
+                           COMPOSE(spaces, OR(unit_thing, BIND(unit_expr, flatten1)))),
+                     COMPOSE(spaces, exp_no_op))
     # I think the issue is cases like 1 + (2 * 3) - 4 ...
-    #def _unit_expr(thing):
-        #return (BIND(parOR(BIND(JOINT(OR(unit_thing, unit_expr_atom, unit_expr),
-                                      #unit_expr_atom),
-                                #flatten)),
-                     #op_order))(thing)
-        
     unit_expr_atom = BIND(BIND(JOINT(OR(unit_thing, BIND(unit_par, flatten1)),
                                      BIND(MANY1(unit_suffix),
                                           flatten1)),
                                flatten),
                           op_order)
-    tests = ('s * m',
-             's * mm',
-             's * m^2',
-             's * m ^ 2',
 
-             's * m',
-             's / m',
-
-             'as * m * g * l',
-             'fs / m * g / l',
-
-             'ps * m * (g * l)',
-             'ns / m * (g / l)',
-
-             '(s * m) * g * l',
-             '(s / m) * g / l',
-
-             '(s * m) * (g * l)',
-             '(s / m) * (g / l)',
-    )
-    tests = 's / m * g * l', 'M / (A * V * R)'
-    tests = '(J * m ) / s',
-    tests = 'mg kg–1',
-    #tests = 'mg * kg–1',
-    ueatest = [unit_expr_atom(v) for v in
-               tests]
-    uetest = [unit_expr(f'({t})') for t in tests]
-
-    #unit_expr_atom = param('uea')(_unit_expr_atom)
-    #unit_expression = param('unit-expr')(BIND(parOR(BIND(JOINT(OR(unit_thing),
-                                                               #unit_expr_atom),
-                                                         #flatten)),
-                                              #op_order))
     unit_expression = param('unit-expr')(unit_expr)
-    ok, out, rest = unit_expression('(m * g) / s^2')
-    ok, out, rest = unit_expression('( m * g ) / s^2')
-    ok, out, rest = unit_expression('(( m * g ) / s^2)')
-    ok, out, rest = unit_expression('(m * g) / s')
-    #tests = '20±11 mm',
 
-    #ok, ueo, rest = unit_expression('(m * g) / s^2')
-
-    embed()
-    sys.exit()
     unit = OR(unit_expression, unit_atom)
     unit_starts_with_dash = COMPOSE(dash_thing, unit)  # derp
     unit_implicit_count_ratio = BIND(JOINT(LEXEME(division),
@@ -332,6 +284,9 @@ def make_unit_parser(units_path=None, dicts=None):
 
     debug_dict = {'infix_expression': infix_expression,
                   'prefix_expression': prefix_expression,
+                  'unit_expr_atom': unit_expr_atom,
+                  'unit_expr': unit_expr,
+                  'unit_expression': unit_expression,
                  }
 
     return parameter_expression, quantity, unit, unit_atom, debug_dict

@@ -65,6 +65,53 @@ class TestUnit(unittest.TestCase):
         out = pyru.UnitsParser(' 0.1M')
         assert out == ('param:quantity', 0.1, ('param:unit', "'molarity"))
 
+    def test_parens(self):
+        tests = (('s * m', ()),
+                 ('s * mm', ()),
+                 ('s * m^2', ()),
+                 ('s * m ^ 2', ()),
+
+                 ('s * m', ()),
+                 ('s / m', ()),
+
+                 ('mg kg–1', ()),
+                 ('mg * kg–1', ()),
+                 ('(J * m ) / s', ()),
+                 ('(m * g) / s', ()),
+                 ('s / m * g * l', ()),
+                 ('M / (A * V * R)', ()),
+
+                 ('as * m * g * l', ()),
+                 ('fs / m * g / l', ()),
+
+                 ('ps * m * (g * l)', ()),
+                 ('ns / m * (g / l)', ()),
+
+                 ('(s * m) * g * l', ()),
+                 ('(s / m) * g / l', ()),
+
+                 ('(s * m) * (g * l)', ()),
+                 ('(s / m) * (g / l)', ()),
+                 ('((s / m) * (g / l))', ()),
+
+                 ('(m * g) / s^2', ()),
+                 ('( m * g ) / s^2', ()),
+                 #'(( m * g ) / s^2)',
+                 ('(m * g) / s', ()),
+
+                 ('(((m * g) * s) * J)', ()),
+                 ('(m * (g * (s * J)))', ()),
+        )
+        ueatest = [unit_expr_atom(t) for t, e in tests]
+        ueabad = [r for r in ueatest if r[-1]]
+        uetest = [unit_expr(f'({t})') for t, e in tests]
+        uebad = [r for r in uetest if r[-1]]
+        ue1test = [unit_expr(f'{t}') for t, e in tests]
+        ue1bad = [r for r in ue1test if r[-1]]
+        uentest = [unit_expression(t) for t, e in tests]
+        uenbad = [r for r in uentest if r[-1]]
+        assert not uenbad
+
 
 class TestExpr(unittest.TestCase):
     def test_parens(self):
