@@ -67,6 +67,46 @@ class TestUnit(unittest.TestCase):
 
 
 class TestExpr(unittest.TestCase):
+    def test_parens(self):
+        test = '(10 + 3) * 4'
+        _, out, _ = parameter_expression(test)
+        assert out == ('param:expr',
+                       ('*',
+                        ('param:quantity', 4, ()),
+                        ('+', 
+                         ('param:quantity', 10, ()),
+                         ('param:quantity', 3, ()))))
+
+    def test_mixed_unit_op_order_simple(self):
+        test = '1 / mm^3'
+        _, out, _ = parameter_expression(test)
+        assert out == ('param:expr',
+                       ('param:quantity', 1,
+                        ('param:unit',
+                           ('/', ('param:unit', "'count"),
+                            ('^',
+                             ('param:unit', "'meters", "'milli"),
+                             ('param:quantity', 3, ()))))))
+
+    def test_mixed_unit_op_order(self):
+        test = '4.7 +- 0.6 x 10^7 / mm^3'
+        test = '(4.7 +- 0.6 x 10^7) / mm^3'
+        _, out, _ = parameter_expression(test)
+        assert out == ('param:expr',
+                       ('*',
+                        ('plus-or-minus',
+                         ('param:quantity', 4.7, ()),
+                         ('param:quantity', 0.6, ())),
+                        ('^',
+                         ('param:quantity', 10, ()),
+                         ('param:quantity',
+                          7,
+                          ('param:unit',
+                           ('/', ('param:unit', "'count"),
+                            ('^',
+                             ('param:unit', "'meters", "'milli"),
+                             ('param:quantity', 3, ()))))))))
+
     def test_prefix_infix_expr(self):
         text = '~1 - 3 mm'
         out = prefix_expression(text)

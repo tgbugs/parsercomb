@@ -25,6 +25,7 @@ __all__ = [
     'RETVAL',
     'RETBOX',
     'SKIP',
+    'NOOP',
 
     'noneof',
 
@@ -33,6 +34,7 @@ __all__ = [
     'transform_value',
     'flatten',
     'flatten1',
+    'noop',
 
     'spaces',
     'newline',
@@ -204,6 +206,11 @@ def SKIP(func1, func2):
         else:
             return success2, v2, rest2
     return skip
+
+
+def NOOP(func):
+    return (lambda p: (True, None, p))
+
 
 def comp(p, val, lv):
     if p:
@@ -403,3 +410,6 @@ def flatten(return_value):
 
 def flatten1(return_value):
     return RETURN(tuple(t for r in return_value for t in r))
+
+def noop(function):
+    return lambda return_value: RETURN(return_value)

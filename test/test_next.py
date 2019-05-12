@@ -8,14 +8,28 @@ from pysercomb.pyr import units as pyru
 from .common import *
 
 class TestPint(unittest.TestCase):
+    def test_percent(self):
+        from pysercomb.pyr.units import ur
+        one = ur.parse_expression('10%')
+        #print(one)
+        two = ur.parse_units('percent')
+        #print(two)
+        #three = ur.parse_units('%')  # a bare percent conflicts with python mod
+        #print(three)
+
     def test_all(self):
         from pint import UnitRegistry
         bads = []
         for expr in test_all:
+            u = None
             try:
-                out = UnitsParser(expr).asPython()
+                u = UnitsParser(expr)
+                out  = u.asPython()
+            except exc.BadNotationError:
+                pass
             except BaseException as e:
-                bads.append((expr, e))
+                raise e
+                bads.append((expr, e, u))
 
         assert not bads, '\n'.join(str(b) for b in bads)
 

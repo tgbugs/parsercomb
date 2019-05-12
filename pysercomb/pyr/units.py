@@ -7,7 +7,7 @@ from pathlib import Path
 import pint
 from pysercomb import exceptions as exc
 from pysercomb.utils import log, logd, express
-from pysercomb.types import TypeCaster, intc, strc
+from pysercomb.types import TypeCaster, boolc, intc, strc
 from pysercomb.parsers.units import get_unit_dicts, _plus_or_minus, make_unit_parser
 from protcur.config import __script_folder__ as pasf
 
@@ -24,7 +24,11 @@ except ImportError:
     pass  # exception logged in rdftypes
 
 
-ur = pint.UnitRegistry(system='cgs')  # 'mgs' ??
+ur = pint.UnitRegistry()
+ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
+ur.default_system = 'mgs'  # SNAAAKKEEEEE system
+#breakpoint()
+
 class _Unit(ur.Unit):
     def format_babel(self, spec='', **kwspec):
         spec = spec or self.default_format
@@ -32,9 +36,9 @@ class _Unit(ur.Unit):
         if '~' in spec:
             #if self.dimensionless:
                 #return ''
-            units = UnitsContainer(dict((self._REGISTRY._get_symbol(key),
-                                         value)
-                                   for key, value in self._units.items()))
+            units = pint.unit.UnitsContainer(dict((self._REGISTRY._get_symbol(key),
+                                                   value)
+                                                  for key, value in self._units.items()))
             spec = spec.replace('~', '')
         else:
             units = self._units
@@ -45,6 +49,9 @@ class _Unit(ur.Unit):
 
     def asRdf(self):
         return 
+
+class _PrefixUnit(_Unit):
+    pass
 
 
 class _Quant(ur.Quantity):
@@ -709,19 +716,25 @@ class Range(Oper):
     op = '-'
     tag = 'range'
 
-    def __init__(self, start, stop):
-        self.start = start
-        self.stop = stop
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
         # unit representation is dealt with by the parser
         # range could figure it out now with the info
         # provided, but for now is just going to be a dumb
         # container
 
     def __str__(self):
-        return f'{self.start}{self.op}{self.stop}'
+        return f'{self.left}{self.op}{self.right}'
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.start!r}, {self.stop!r})'
+        return f'{self.__class__.__name__}({self.left!r}, {self.right!r})'
+
+    def nist(self):
+       #see_also = ('https://www.nist.gov/pml/nist-guide-si-chapter-7-rules-and-style-'
+                   #'conventions-expressing-values-quantities#77 ') 
+
+        return f'{self.left} to {self.right}'
 
     def json(self):
         return dict(type=self.tag,
@@ -729,7 +742,7 @@ class Range(Oper):
                     stop=self.stop.json())
 
     #@express
-    def asRdf(self, subject):
+    def _asRdf(self, subject):
         # TODO correctly done inside a restriction as well
         start = self.start.value.asRdf
         stop = self.stop.value.asRdf
@@ -770,22 +783,34 @@ class Dilution(LoR):
 
 class Dimensions(Oper):
     op = 'x'
-    def __init__(self, *dims, unit=None):
-        unit = set(d.unit for d in itertools.chain(dims, (unit,)) if d and d.unit is not None)
-        if len(unit) > 1:
-            raise ValueError(f'More than one unit! {unit}')
-        elif unit:
-            self.unit = next(iter(unit))
-        else:
-            self.unit = None
-
-        self.values = tuple(d.value for d in dims)
+    def __init__(self, *quants):
+        self.quants = quants
 
     def __str__(self):
-        return self.op.join(str(v) for v in self.values) + (str(self.unit) if self.unit else '')
+        return f' {self.op} '.join(v.format_babel('~', locale='en_US') for v in self.quants)
+
+    def __repr__(self):
+        return str(self)
 
     def asRdf(self):
         self.dims
+
+
+class Approximately(Oper):
+    """ No numercial uncertainty give, but with facilities to operationalize it. """
+
+    def __init__(self, expr):
+        self.expr = expr
+
+    def __str__(self):
+        return f'~{self}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.expr!r})'
+
+    def quantify(self, error, relative=False):
+        """ provide concrete values for the approximateness of approximately """
+        return self.expr.plus_or_minus(error, relative)
 
 
 class mode(Enum):
@@ -850,7 +875,7 @@ class Interpreter:
             # FIXME this wrapping the top level in an exception handler ... tisk tisk (hah)
             raise exc.ParseFailure(sexp._input)
 
-        #print(repr(python_repr))
+        print(repr(python_repr))
         python_repr._sexp = sexp
         return python_repr
 
@@ -922,22 +947,30 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
         p = self._prefix(prefix)
         u = self._unit(unquoted_unit)
 
-        pu = ur.parse_units(p + u)
-        return pu
-        #return self._Unit(u, p)
+        pu = p + u
+        try:
+            urpu = ur.parse_units(pu)
+        except BaseException as e:
+            raise ValueError(pu) from e
+
+        return urpu
 
     def _prefix(self, prefix):
         if prefix:
             prefix = prefix[1:]
-            return self.prefix_dict[prefix]
+            return prefix
+            #return self.prefix_dict[prefix]
         else:
             return ''  # FIXME pint PrefixDefinition?
 
     def _unit(self, unquoted_unit):
-        return self.unit_dict[unquoted_unit]
+        # don't bother to shorten, we will do that at rendering time
+        # do replace the - with _ to help pint
+        return unquoted_unit.replace('-', '_')
 
     def prefix_unit(self, unit):
-        return self._PrefixUnit(self.unit(unit))
+        return _PrefixUnit(self.unit(unit))  # FIXME need a way to mark these ...
+        #return self._PrefixUnit(self.unit(unit))
 
     #@macro(True, False)  # TODO specify which values can be evaluated
     @macro
@@ -949,12 +982,11 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
         value = self.eval(value)
         value = value if value else 1  # multiplication by 1 for units if the unit is None we get zero?
         unit_value = self.eval(unit)
-        return value * unit_value  # ah, just set it to 1 for no units ... fun
+        # the null unit is just null so we have to handle that since it has no type
+        if unit_value is None:
+            unit_value = ur.dimensionless
 
-        if unit and unit[0] == 'param:prefix-unit':
-            return self._PrefixQuantity(value, unit_value)
-        else:
-            return self._Quantity(value, unit_value)
+        return value * unit_value  # ah, just set it to 1 for no units ... fun
 
     def plus(self, *operands):
         first, *rest = operands
@@ -970,7 +1002,11 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
     def multiplication(self, *operands):
         first, *rest = operands
         for o in rest:
-            first *= o
+            try:
+                first *= o
+            except BaseException as e:
+                breakpoint()
+                raise e
 
         return first
 
@@ -978,10 +1014,23 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
         return numerator / denominator
         
     def exp(self, left, right):
-        breakpoint()
-        return left ** right
+        # big note here that the units representation in protcur
+        # is distinctly NOT algebraic with regard to order of operations
+        # this is a structural issue with the parsing output that we
+        # correct here -- however it seems likely that at some point
+        # someone might actually want to say 10 m ** 6 or something like that?
+        if isinstance(left, _Quant):
+            left, right = self._merge_dims(left, right)
+            return left.magnitude ** right.magnitude * left.units
+
+        try:
+            return left ** right
+        except BaseException as e:
+            breakpoint()
+            raise e
 
     def approximately(self, expression):
+        return Approximately(expression)
         return f'~{expression}'  # FIXME not quite ready
 
     def plus_or_minus(self, base, error=None):
@@ -995,7 +1044,47 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
             logd.error(str(e))
             return e
 
-        return PlusOrMinus(base, error)
+
+        base, error = self._merge_dims(base, error)
+        try:
+            return base.plus_minus(error)  # TODO
+        except BaseException as e:
+            breakpoint()
+            raise e
+        #return PlusOrMinus(base, error)
+
+    def _merge_dims(self, *quants):
+        """ the sexpr representation only includes the unit once
+            since we know we will eventually apply it to all values
+            in the quantity, which we do here
+            there are probably errors that can creep in because of this
+            if the parser spec failes to capture some corner case """
+
+        with_dims = [q for q in quants if hasattr(q, 'dimensionality') and q.dimensionality]
+
+        if with_dims:
+            first = with_dims[0]
+            for q in with_dims[1:]:
+                assert first.check(q.dimensionality)
+
+            fu = first.units
+            return [fu * q.magnitude for q in quants]
+        
+        return quants
+
+        ld = left.dimensionality
+        rd = right.dimensionality
+
+        if ld and rd:
+            assert left.check(right.dimensionality)
+
+        elif ld:
+            right = right * left.units
+
+        elif rd:
+            left = left * right.units
+
+        return left, right
 
     def range(self, left, right):
         """ Range faces a similar issue as quantity
@@ -1007,8 +1096,12 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
             different units, and the answer is 'here' for range
             and for dimensions, this is true even if we are handed
             prefix quantities """
+        left, right = self._merge_dims(left, right)
+
+        return self._Range(left, right)
+
         # TODO abstract this for *quants (i.e. dimensions)
-        units = set(e.unit for e in (left, right))
+        units = set(e.units for e in (left, right))
         if len(units) == 1:  # otherwise we are going to print both units
             unit = next(iter(units))
             # hack to simplify printing
@@ -1022,14 +1115,16 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
         return self._Range(left, right)
 
     def dilution(self, left, right):
+        left, right = self._merge_dims(left, right)
         return self._Dilution(left, right)
 
     def dimensions(self, *quants):
         # TODO reduce multiple units ?? it 1mm x 1mm x 1mm -> 1x1x1mm
+        quants = self._merge_dims(*quants)
         return self._Dimensions(*quants)
 
     def bool(self, value):
-        return value == '#t'
+        return boolc(value == '#t')
         #return 'true' if value == '#t' else 'false'
 
     def _than(self, symbol, left, right):

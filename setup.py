@@ -40,7 +40,7 @@ setup(name='pysercomb',
       ],
       python_requires='>=3.6',
       tests_require=tests_require,
-      install_requires=['pint'],
+      install_requires=['pint', 'uncertainties'],  # need to fix pint deps
       extras_require={'units': ['protcur'],
                       'test': tests_require,
                      },

@@ -1,0 +1,23 @@
+hour = min * 60 = h = [time] # override plank length default
+# pH = log10_concentration_Hplus = log [concentration]
+pH = log10_concentration_Hplus
+postnatal_day = day = P = days_since_birth = [time]
+fold = x = []  # FIXME not a multiplicative unit ...
+numerical_aperture = NA = []
+bel = []
+degrees_celsius = degC = degrees-celsius
+percent = 0.01 * count = %
+osmole = [substance_particles] = Osm  # this is quite complicated to calculate from first principles since it is actual particles
+osmolarity = Osm / liter
+molarity = molar
+
+# for U -> kat see
+# Wharton, Christopher W.; Eisenthal, Robert (2013), Molecular Enzymology,
+# Tertiary Level Biology, Springer Science and Business Media, p. 82, ISBN 9781461585329.
+enzyme_unit = μmol / min = 1 / 60 μmol / s = 100 / 6 nkat = enzyme-unit = U
+
+@system mgs using international
+    meter
+    gram
+    second
+@end

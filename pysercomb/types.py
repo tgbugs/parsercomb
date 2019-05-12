@@ -28,6 +28,10 @@ class Converter:
         return rdflib.Literal(self)
 
 
+class boolc(Converter, float):
+    pass
+
+
 class floatc(Converter, float):
     def __truediv__(self, other):
         return floatc(super().__truediv__(other))
