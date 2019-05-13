@@ -240,9 +240,10 @@ def make_unit_parser(units_path=None, dicts=None):
     #def num_par(thing): return num_expression(thing)
     #def num_expr(thing): return num_expression(thing)
 
-    def num_expression(thing): return OR(parOR(_num_expression), num)(thing)
+    def num_expression(thing): return OR(param('expr')(parOR(_num_expression)), num)(thing)
+    def num_expression_inner(thing): return OR(parOR(_num_expression), num)(thing)
 
-    num_thing = OR(num, BIND(parenthized(num_expression), flatten1))
+    num_thing = OR(num, BIND(parenthized(num_expression_inner), flatten1))
     num_suffix = JOINT(COMPOSE(spaces, infix_operator),
                        COMPOSE(spaces, num_thing))
 

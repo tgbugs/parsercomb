@@ -166,51 +166,48 @@ class TestNumExpr(unittest.TestCase):
     def test_1(self):
         res = self.func('0 + 0')
         _, out, _ = res
-        assert out == ('+', 0, 0), res
+        assert out == ('param:expr', ('+', 0, 0)), res
 
     def test_2(self):
         res = self.func('(2 + 1)')
         _, out, _ = res
-        assert out == ('+', 1, 2), res
+        assert out == ('param:expr', ('+', 1, 2)), res
 
     def test_3(self):
         res = self.func('0 + 0 + 0')
         _, out, _ = res
-        assert out, res
+        assert out == ('param:expr', ('+', 0, 0, 0)), res
 
     def test_3_0(self):
         res = self.func('(0 + 0) + 0')
         _, out, _ = res
-        assert out, res
+        assert out == ('param:expr', ('+', 0, 0, 0)), res
 
     def test_3_1(self):
         res = self.func('0 + (0 + 0)')
         _, out, _ = res
-        assert out, res
+        assert out == ('param:expr', ('+', 0, 0, 0)), res
 
     def test_4(self):
         res = self.func('(0 + 0 + 0)')
         _, out, _ = res
-        assert out, res
+        assert out == ('param:expr', ('+', 0, 0, 0)), res
 
     def test_5(self):
         """ breaks the parser """
         res = self.func('((0 + 0) + 0)')
         _, out, _ = res
-        assert out, res
+        assert out == ('param:expr', ('+', 0, 0, 0)), res
 
     def test_6(self):
-        res = infix_expression('((0 + 0) + 0)')
+        res = self.func('((0 + 0) + 0)')
         _, out, _ = res
-        assert out, res
+        assert out == ('param:expr', ('+', 0, 0, 0)), res
 
     def test_7(self):
-        res = parameter_expression('((0 + 0) + 0)')
+        res = self.func('((0 + 0) + 0)')
         _, out, _ = res
-        assert out, res
-
-class TestNumThing(TestNumExpr):
-    func = staticmethod(num_thing)
+        assert out == ('param:expr', ('+', 0, 0, 0)), res
 
 
 class TestExpr(unittest.TestCase):
@@ -242,8 +239,8 @@ class TestExpr(unittest.TestCase):
     def test_num_expression(self):
         tests = (
             ('1', (True, 1, '')),
-            ('1 + 2', (True, ('+', 1, 2), '')),
-            ('(1 + 2)', (True, ('+', 1, 2), '')),
+            ('1 + 2', (True, ('param:expr', ('+', 1, 2)), '')),
+            ('(1 + 2)', (True, ('param:expr', ('+', 1, 2)), '')),
         )
         ntest = [(t, num_expression(t), e) for t, e in tests]
         nbad = [(t, r, e) for t, r, e in ntest if r != e]
@@ -251,9 +248,8 @@ class TestExpr(unittest.TestCase):
 
     def test_parens(self):
         test = '(10 + 3) * 4'  # FIXME should be able to subsum all of this into a single expr
-        _, out, _ = parameter_expression(test)
-        assert out == ('param:expr',
-                       ('*', 4, ('+', 3, 10)))
+        _, out, _ = num_expression(test)
+        assert out == ('param:expr', ('*', 4, ('+', 3, 10)))
 
     def test_mixed_unit_op_order_simple(self):
         test = '1 / mm^3'
@@ -271,9 +267,10 @@ class TestExpr(unittest.TestCase):
         _, out, _ = parameter_expression(test)
         print(out)
         assert out == ('param:quantity',
-                       ('*',  # FIXME mark as param:expr?
-                        ('plus-or-minus', 4.7, 0.6),
-                        ('^', 10, 7)),
+                       ('param:expr',
+                        ('*',  # FIXME mark as param:expr?
+                         ('plus-or-minus', 4.7, 0.6),
+                         ('^', 10, 7))),
                        ('param:unit-expr',
                         ('/', ('param:unit', "'count"),
                          ('^', ('param:unit', "'meters", "'milli"), 3))))
@@ -283,10 +280,10 @@ class TestExpr(unittest.TestCase):
         out = prefix_expression(text)
         test = (True,
                 (('approximately',
-                  ('range',
-                   ('param:quantity', 1, ()),
-                   ('param:quantity', 3,
-                    ('param:unit', "'meters", "'milli")))),),
+                  ('param:quantity',
+                   ('param:expr', ('range', 1, 3)),
+                   ('param:unit', "'meters", "'milli"))
+                   ),),
                 '')
         assert out == test
 
@@ -300,53 +297,54 @@ class TestExpr(unittest.TestCase):
 
     def test_infix_expr_many(self):
         text = '1 * 3 * 2 * 4'
-        out = parameter_expression(text)
+        out = num_expression(text)
         test = (True,
-                (('*',
-                  ('param:quantity', 1, ()),
-                  ('param:quantity', 2, ()),
-                  ('param:quantity', 3, ()),
-                  ('param:quantity', 4, ())),),
+                ('param:expr',
+                 ('*',
+                  1,
+                  2,
+                  3,
+                  4),),
                 '')
         assert out == test
 
     def test_infix_expr_op_order_plus_mult(self):
         text = '1 * 2 + 4 * 3'
-        out = parameter_expression(text)
+        out = num_expression(text)
         test = (True,
-                (('+',
+                ('param:expr',
+                 ('+',
                   ('*',
-                   ('param:quantity', 1, ()),
-                   ('param:quantity', 2, ())),
+                   1,
+                   2),
                   ('*',
-                   ('param:quantity', 3, ()),
-                   ('param:quantity', 4, ()))),),
+                   3,
+                   4)),),
                 '')
         assert out == test
 
     def test_infix_expr_op_order_plus_mult_2(self):
         text = '2 * 1 + 4 * 5 * 3'
-        out = parameter_expression(text)
+        out = num_expression(text)
         test = (True,
-                (('+',
+                ('param:expr',
+                 ('+',
                   ('*',
-                   ('param:quantity', 1, ()),
-                   ('param:quantity', 2, ())),
+                   1,
+                   2),
                   ('*',
-                   ('param:quantity', 3, ()),
-                   ('param:quantity', 4, ()),
-                   ('param:quantity', 5, ()))),),
+                   3,
+                   4,
+                   5)),),
                 '')
         assert out == test
 
     def test_infix_expr_noncommutative(self):
         """ do not reorder across non-commutative functions """
         text = '3 ^ 2'  # can't use subtraction since we don't parse it
-        out = parameter_expression(text)
+        out = num_expression(text)
         test = (True,
-                (('^',
-                  ('param:quantity', 3, ()),
-                  ('param:quantity', 2, ())),),
+                ('param:expr', ('^', 3, 2),),
                 '')
         assert out == test
 
