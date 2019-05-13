@@ -5,6 +5,7 @@ import itertools
 from enum import Enum
 from pathlib import Path
 import pint
+from pyontutils import combinators as cmb
 from pysercomb import exceptions as exc
 from pysercomb.utils import log, logd, express
 from pysercomb.types import TypeCaster, boolc, intc, strc
@@ -45,10 +46,12 @@ class _Unit(ur.Unit):
 
         return '%s' % (units.format_babel(spec, **kwspec))
 
-
+    def json(self):
+        return str(self)
 
     def asRdf(self):
-        return 
+        return rdflib.Literal(unit[str(self)])
+
 
 class _PrefixUnit(_Unit):
     pass
@@ -64,15 +67,32 @@ class _Quant(ur.Quantity):
 
         return self.__class__(magnitude, other)
 
+    #@property
+    #def magnitude(self):
+        #magnitude = super().magnitude
+        #return magnitude
+
+    def json(self):
+        # FIXME prefix vs suffix quantities
+        return dict(type='quantity', value=self.magnitude, unit=self.units.json())
+
     def asRdf(self, subject):
+        nq = self.to_base_units()
+        magnitude = TypeCaster.cast(nq.magnitude)
         if not self.units:  # FIXME ... predicate how?
-            yield subject, TEMP.hasValue, self.value.asRdf
+            yield subject, TEMP.hasValue, magnitude.asRdf()
             return
 
-        value, unit = self.units.asRdf(self.magnitude)
-        yield subject, TEMP.hasValue, value
-        yield subject, TEMP.hasUnit, unit
+        #value, unit = self.units.asRdf(self.magnitude)
+        yield subject, TEMP.hasValue, magnitude.asRdf()
+        yield subject, TEMP.hasUnit, nq.units.asRdf()
 
+    @property
+    def ttl(self):
+        graph = rdflib.Graph()
+        OntCuries.populate(graph)
+        [graph.add(t) for t in self.asRdf(rdflib.BNode())]
+        return graph.serialize(format='nifttl')
 
 
 ur.Unit = _Unit
@@ -242,8 +262,8 @@ class Expr(UnitsHelper, ImplFactoryHelper):
     def __iadd__(self, other):
         return self.__add__(other)
 
-    def __mul__(self, other):
-        return self._Mul(self, other)
+    #def __mul__(self, other):
+        #return self._Mul(self, other)
 
     def __imul__(self, other):
         return self.__mul__(other)
@@ -267,8 +287,8 @@ class Expr(UnitsHelper, ImplFactoryHelper):
             raise NotImplementedError
 
     #@express
-    def asRdf(self):
-        yield from self.asRdf(rdflib.BNode())
+    #def asRdf(self):
+        #yield from self.asRdf(rdflib.BNode())
 
     @property
     def ttl(self):
@@ -295,46 +315,46 @@ class LoR(Oper):
         self.left = left
         self.right = right
 
-    @property
-    def simplified(self):
-        l = self.left
-        r = self.right
-        if isinstance(l, Quantity):
-            value_ = getattr(l.value, self._op)(r.value)
-            unit__ = getattr(l.unit, self._op)(r.unit)
-        else:
-            unit = self
+    #@property
+    #def simplified(self):
+        #l = self.left
+        #r = self.right
+        #if isinstance(l, Quantity):
+            #value_ = getattr(l.value, self._op)(r.value)
+            #unit__ = getattr(l.unit, self._op)(r.unit)
+        #else:
+            #unit = self
         #value, unit_ = unit__(value_)
-        breakpoint()
-        return value_, unit__
+        #breakpoint()
+        #return value_, unit__
 
-    def __str__(self):
-        value = self.value
-        value = '' if value is None else value
-        return f'{value}{self.unit}'
+    #def __str__(self):
+        #value = self.value
+        #value = '' if value is None else value
+        #return f'{value}{self.unit}'
         #return f'{self.left}{self.op}{self.right}'
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.left!r}, {self.right!r})'
 
-    @property
-    def value(self):
-        l = self.left
-        r = self.right
-        if not isinstance(l, Quantity):
-            return None
+    #@property
+    #def value(self):
+        #l = self.left
+        #r = self.right
+        #if not isinstance(l, Quantity):
+            #return None
 
-        return getattr(l.value, self._op)(r.value)  # FIXME normalize wrt units ...
+        #return getattr(l.value, self._op)(r.value)  # FIXME normalize wrt units ...
 
-    @property
-    def unit(self):
-        l = self.left
-        r = self.right
+    #@property
+    #def unit(self):
+        #l = self.left
+        #r = self.right
         # if we are maximally reduced ...
-        return (getattr(l.unit, self._op)(r.unit)
-                if l.unit and r.unit
-                else (l.unit if l.unit
-                      else (r.unit if r.unit else Unit(None, None))))
+        #return (getattr(l.unit, self._op)(r.unit)
+                #if l.unit and r.unit
+                #else (l.unit if l.unit
+                      #else (r.unit if r.unit else Unit(None, None))))
 
     @property
     def prefix(self):
@@ -598,7 +618,7 @@ class PrefixUnit(Unit):
             super().__init__(unit, prefix)
 
 
-class Quantity(Expr):
+class __Quantity(Expr):
 
     tag_suffix = 'quantity'
 
@@ -662,7 +682,7 @@ class Quantity(Expr):
         yield subject, TEMP.hasUnit, unit
 
 
-class PrefixQuantity(Quantity):
+class __PrefixQuantity(__Quantity):
 
     tag_suffix = 'prefix-quantity'
 
@@ -724,6 +744,13 @@ class Range(Oper):
         # provided, but for now is just going to be a dumb
         # container
 
+    def __mul__(self, other):
+        # FIXME rmul on units?
+        if isinstance(other, _Unit):
+            return self.__class__(self.left * other, self.right * other)
+        else:
+            raise NotImplementedError
+
     def __str__(self):
         return f'{self.left}{self.op}{self.right}'
 
@@ -738,34 +765,43 @@ class Range(Oper):
 
     def json(self):
         return dict(type=self.tag,
-                    start=self.start.json(),
-                    stop=self.stop.json())
+                    start=self.left.json(),
+                    stop=self.right.json())
 
-    #@express
-    def _asRdf(self, subject):
+    def asRdf(self, subject=None):
         # TODO correctly done inside a restriction as well
-        start = self.start.value.asRdf
-        stop = self.stop.value.asRdf
-        type_ = (xsd.integer if
-                 isinstance(start.value, int) and
-                 isinstance(stop.value, int)
-                 else owl.real)
-        # FIXME need the base normalized values
-        if self.start.unit:
-            v1, type_ = self.start.unit.asRdf(start.value)
+        if subject is None:
+            subject = rdflib.BNode()
 
-        elif self.stop.unit:
-            v2, type_ = self.stop.unit.asRdf(stop.value)
+        nl = self.left.to_base_units()
+        nr = self.right.to_base_units()
+
+        nlm = TypeCaster.cast(nl.magnitude)
+        nrm = TypeCaster.cast(nr.magnitude)
+
+        #left = self.left.magnitude
+        #right = self.right.magnitude
+        type_ = (xsd.integer if
+                 isinstance(nl, int) and
+                 isinstance(nr, int)
+                 else xsd.real)
+
+        if nl.units:
+            type_ = nl.units.asRdf()
+        elif nr.units:
+            # this case shouldn't happen since the
+            # interpreter normalizes range units before we get here
+            type_ = nr.units.asRdf()
 
         def min_(s, p):
             o = rdflib.BNode()
             yield s, p, o
-            yield o, xsd.minInclusive, start
+            yield o, xsd.minInclusive, nlm.asRdf()
 
         def max_(s, p):
             o = rdflib.BNode()
             yield s, p, o
-            yield o, xsd.maxInclusive, stop
+            yield o, xsd.maxInclusive, nrm.asRdf()
 
         yield subject, a, rdfs.Datatype
         yield subject, owl.onDatatype, type_
@@ -803,7 +839,7 @@ class Approximately(Oper):
         self.expr = expr
 
     def __str__(self):
-        return f'~{self}'
+        return f'~{self.expr}'
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.expr!r})'
@@ -875,7 +911,6 @@ class Interpreter:
             # FIXME this wrapping the top level in an exception handler ... tisk tisk (hah)
             raise exc.ParseFailure(sexp._input)
 
-        print(repr(python_repr))
         python_repr._sexp = sexp
         return python_repr
 
@@ -1044,10 +1079,13 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
             logd.error(str(e))
             return e
 
+        if not hasattr(base, 'plus_minus'):  # unconverted
+            _base = base
+            base = _base * ur.dimensionless #_Quant(base)
 
-        base, error = self._merge_dims(base, error)
+        nbase, nerror = self._merge_dims(base, error)
         try:
-            return base.plus_minus(error)  # TODO
+            return nbase.plus_minus(nerror)  # TODO
         except BaseException as e:
             breakpoint()
             raise e
@@ -1071,20 +1109,6 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
             return [fu * q.magnitude for q in quants]
         
         return quants
-
-        ld = left.dimensionality
-        rd = right.dimensionality
-
-        if ld and rd:
-            assert left.check(right.dimensionality)
-
-        elif ld:
-            right = right * left.units
-
-        elif rd:
-            left = left * right.units
-
-        return left, right
 
     def range(self, left, right):
         """ Range faces a similar issue as quantity
@@ -1194,8 +1218,8 @@ UnitsHelper.setup()
 ParamParser.bindImpl(None,
                      Unit,
                      PrefixUnit,
-                     Quantity,
-                     PrefixQuantity,
+                     #Quantity,
+                     #PrefixQuantity,
                      Range,
                      Dilution,
                      Dimensions)
@@ -1208,10 +1232,10 @@ class UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs to
 
     ParseFailure = exc.ParseFailure
 
-    def __new__(cls, string_to_parse, sexp=None):
+    def __new__(cls, string_to_parse, sexp=None, rest_ok=True):
         if sexp is None:  # needed for copy to work happily
             success, sexp, rest = cls._parameter_expression(string_to_parse)
-            if rest:
+            if rest and not rest_ok:
                 raise ValueError(f'Failed to parse suffix {rest}')
 
         self = super().__new__(cls, sexp)

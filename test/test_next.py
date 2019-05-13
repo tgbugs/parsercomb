@@ -3,7 +3,7 @@ import unittest
 import rdflib
 from pysercomb import exceptions as exc
 from pysercomb.parsers.units import DEGREES_FEAR
-from pysercomb.pyr.units import ParamParser, SExpr, Expr, UnitsParser, Quantity
+from pysercomb.pyr.units import ParamParser, SExpr, Expr, UnitsParser
 from pysercomb.pyr import units as pyru
 from .common import *
 
@@ -20,6 +20,7 @@ class TestPint(unittest.TestCase):
     def test_all(self):
         from pint import UnitRegistry
         bads = []
+        fails = []
         for expr in test_all:
             u = None
             try:
@@ -27,9 +28,12 @@ class TestPint(unittest.TestCase):
                 out  = u.asPython()
             except exc.BadNotationError:
                 pass
+            except exc.ParseFailure as e:
+                fails.append((expr, e, u))
             except BaseException as e:
                 raise e
                 bads.append((expr, e, u))
 
-        assert not bads, '\n'.join(str(b) for b in bads)
+        #assert not bads, '\n'.join(str(b) for b in bads)
+        assert not fails, '\n'.join(str(f) for f in fails)
 

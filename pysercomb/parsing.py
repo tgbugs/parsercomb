@@ -421,7 +421,6 @@ def flatten(return_value):
     return RETURN((first, *rest))
 
 def flatten1(return_value):
-    print(return_value)
     return RETURN(tuple(t for r in return_value for t in r))
 
 def noop(function):

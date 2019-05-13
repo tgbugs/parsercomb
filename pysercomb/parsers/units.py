@@ -237,9 +237,6 @@ def make_unit_parser(units_path=None, dicts=None):
     # FIXME range vs minus ...
     infix_operator = OR(plus_or_minus, range_indicator, math_op)  # colon? doesn't really operate on quantities, note that * and / do not interfere with the unit parsing because that takes precedence
 
-    #def num_par(thing): return num_expression(thing)
-    #def num_expr(thing): return num_expression(thing)
-
     def num_expression(thing): return OR(param('expr')(parOR(_num_expression)), num)(thing)
     def num_expression_inner(thing): return OR(parOR(_num_expression), num)(thing)
 
@@ -252,17 +249,6 @@ def make_unit_parser(units_path=None, dicts=None):
                                            flatten1)),
                                 flatten),
                            op_order)
-
-    #_num_expression = BIND(JOINT(num_thing, MANY1(num_suffix)), op_order)
-
-    #test = '0 + 0'
-    #ok, out, rest = num_expression(test)
-    #from IPython import embed
-    #embed()
-    #import sys
-    #sys.exit()
-
-    #num_expression = OR(BIND(parenthized(_num_expression), flatten1), num)  # all of these flatten
 
     _C_for_temp = COMP('C')
     C_for_temp = RETVAL(_C_for_temp, BOX(_silookup['degrees-celsius']))
@@ -462,7 +448,9 @@ def parse_for_tests(parameter_expression=None):
 
     _all = tests + prefix_expr_tests + weirds + should_fail + param_test_strings
     if parameter_expression:
-        parsed = [parameter_expression(t)[1] for t in _all]
+        from pysercomb.pyr import units as pyru
+        up = pyru.UnitsParser
+        parsed = [up(t) for t in _all]
     else:
         parsed = None
 
