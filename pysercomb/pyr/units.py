@@ -1,4 +1,5 @@
-""" Python class representation for the output of the units parser. """
+""" Python class representation for the output of the units parser.
+    You must call UnitHelper.setup() in the client code before you can use this. """
 import copy
 import pprint
 import itertools
@@ -16,19 +17,17 @@ try:
     import rdflib
     # FIXME do not want circular imports incoming ...
     from pyontutils.namespaces import TEMP, OntCuries
+    from pyontutils.namespaces import prot, proc, tech, asp, dim, unit
     from pyontutils.closed_namespaces import rdf, owl, rdfs
-    from nifstd_tools.methods.core import prot, proc, tech, asp, dim, unit
     xsd = rdflib.XSD
     a = rdf.type
     OntCuries({'unit':str(unit)})
 except ImportError:
     pass  # exception logged in rdftypes
 
-
 ur = pint.UnitRegistry()
 ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
 ur.default_system = 'mgs'  # SNAAAKKEEEEE system
-#breakpoint()
 
 class _Unit(ur.Unit):
     def format_babel(self, spec='', **kwspec):
@@ -125,9 +124,16 @@ class ImplFactoryHelper:
 
 class UnitsHelper:
 
-    @classmethod
-    def setup(cls):
+    __setup = False
+
+    @staticmethod
+    def setup():
         """ call setup on UnitsHelper once, not on subclasses """
+
+        if hasattr(UnitsHelper, '__setup') and UnitsHelper.__setup:
+            return  # already setup
+
+        UnitsHelper.__setup = True
 
         units_path = Path(pasf, '../../protc-lib/protc/units')
         dicts = get_unit_dicts(units_path)
@@ -135,17 +141,17 @@ class UnitsHelper:
         (parameter_expression, quantity, unit, *_,
          debug_dict) = make_unit_parser(dicts=dicts)
 
-        cls._parameter_expression = staticmethod(parameter_expression)
+        UnitsHelper._parameter_expression = staticmethod(parameter_expression)
 
         gs = globals()
         for dict_ in dicts:
             gs.update(dict_)
 
-        cls.si_exponents = {prefix if prefix is None else strc(prefix):intc(exp)
+        UnitsHelper.si_exponents = {prefix if prefix is None else strc(prefix):intc(exp)
                             for prefix, exp in prefixes_si_exponents}
-        cls.si_exponents_inv = {e:p for p, e in cls.si_exponents.items()}
+        UnitsHelper.si_exponents_inv = {e:p for p, e in UnitsHelper.si_exponents.items()}
 
-        cls.unit_dict = {strc(unit):strc(abbrev) for abbrev, unit in
+        UnitsHelper.unit_dict = {strc(unit):strc(abbrev) for abbrev, unit in
                           chain(units_si,
                                 units_extra,
                                 units_extra_prefix,
@@ -153,20 +159,20 @@ class UnitsHelper:
                                 units_dimensionless_prefix,
                                 units_imp,)}
 
-        cls.unit_dict_inv = {a:u for u, a in cls.unit_dict.items()}
+        UnitsHelper.unit_dict_inv = {a:u for u, a in UnitsHelper.unit_dict.items()}
 
         # don't actually need this because its in the ast
         #prefix_units = set(unit for abbrev, unit in
                         #chain(units_extra_prefix,
                                 #units_dimensionless_prefix))
 
-        cls.prefix_dict = {strc(prefix):strc(abbrev) for abbrev, prefix in prefixes_si}
-        cls.prefix_dict_inv = {p:a for a, p in cls.prefix_dict.items()}
+        UnitsHelper.prefix_dict = {strc(prefix):strc(abbrev) for abbrev, prefix in prefixes_si}
+        UnitsHelper.prefix_dict_inv = {p:a for a, p in UnitsHelper.prefix_dict.items()}
 
         # surely there is a more elegant way ...
         # TODO
-        cls.conversion = {'__truediv__':[],
-                          '__mul__':[]}
+        UnitsHelper.conversion = {'__truediv__':[],
+                                  '__mul__':[]}
 
 
 class SExpr(tuple):
