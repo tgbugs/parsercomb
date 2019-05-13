@@ -50,12 +50,23 @@ class TestUnit(unittest.TestCase):
         msg = 'Ax failed to parse as fold!'
         assert parameter_expression('40x')[1] == ('param:quantity', 40, ('param:unit', "'fold")), msg
 
-    def test_dimension(self):
+    def test_dimensions(self):
         msg = 'A x B failed to parse as dimensions!'
-        assert parameter_expression('50 x 50 um')[1] == ('param:dimensions',
-                                                         ('param:quantity', 50, ()),
-                                                         ('param:quantity', 50,
-                                                          ('param:unit', "'meters", "'micro"))), msg
+        # 50 x 50 um is ambiguous, unless additional information can be supplied
+        # if you have the additional context then use dimensions_no_math
+        assert parameter_expression('50 um x 50 um')[1] == ('param:dimensions',
+                                                            ('param:quantity', 50,
+                                                             ('param:unit', "'meters", "'micro")),
+                                                            ('param:quantity', 50,
+                                                             ('param:unit', "'meters", "'micro"))), msg
+
+    def test_dimensions_no_math(self):
+        assert dimensions_no_math('50 x 50 um')[1] == ('param:dimensions',
+                                                       ('param:quantity', 50, ()),
+                                                       ('param:quantity', 50,
+                                                        ('param:unit', "'meters", "'micro"))), msg
+
+
 
     def test_percent(self):
         msg = '% failed to parse'
@@ -143,31 +154,66 @@ class TestUnit(unittest.TestCase):
         assert not uenbad
 
 
-class TestExpr(unittest.TestCase):
-    def test_oon(self):
-        res = num_expression('0 + 0 + 0')
+class TestNumExpr(unittest.TestCase):
+
+    func = staticmethod(num_expression)
+
+    def test_0(self):
+        res = self.func('0')
+        _, out, _ = res
+        assert out == 0, res
+
+    def test_1(self):
+        res = self.func('0 + 0')
+        _, out, _ = res
+        assert out == ('+', 0, 0), res
+
+    def test_2(self):
+        res = self.func('(2 + 1)')
+        _, out, _ = res
+        assert out == ('+', 1, 2), res
+
+    def test_3(self):
+        res = self.func('0 + 0 + 0')
         _, out, _ = res
         assert out, res
 
-    def test_oom(self):
-        res = num_expression('(0 + 0 + 0)')
+    def test_3_0(self):
+        res = self.func('(0 + 0) + 0')
         _, out, _ = res
         assert out, res
 
-    def test_ooo(self):
+    def test_3_1(self):
+        res = self.func('0 + (0 + 0)')
+        _, out, _ = res
+        assert out, res
+
+    def test_4(self):
+        res = self.func('(0 + 0 + 0)')
+        _, out, _ = res
+        assert out, res
+
+    def test_5(self):
         """ breaks the parser """
-        res = num_expression('((0 + 0) + 0)')
+        res = self.func('((0 + 0) + 0)')
         _, out, _ = res
         assert out, res
 
+    def test_6(self):
         res = infix_expression('((0 + 0) + 0)')
         _, out, _ = res
         assert out, res
 
+    def test_7(self):
         res = parameter_expression('((0 + 0) + 0)')
         _, out, _ = res
         assert out, res
 
+class TestNumThing(TestNumExpr):
+    func = staticmethod(num_thing)
+
+
+class TestExpr(unittest.TestCase):
     def test_mixed_expr(self):
         tests = (
             ('(1 + 2) * (3 + 4)', ()),
@@ -196,7 +242,7 @@ class TestExpr(unittest.TestCase):
     def test_num_expression(self):
         tests = (
             ('1', (True, 1, '')),
-            ('1 + 2', (True, 1, ' + 2')),
+            ('1 + 2', (True, ('+', 1, 2), '')),
             ('(1 + 2)', (True, ('+', 1, 2), '')),
         )
         ntest = [(t, num_expression(t), e) for t, e in tests]
@@ -207,9 +253,7 @@ class TestExpr(unittest.TestCase):
         test = '(10 + 3) * 4'  # FIXME should be able to subsum all of this into a single expr
         _, out, _ = parameter_expression(test)
         assert out == ('param:expr',
-                       ('*',
-                        ('param:quantity', 4, ()),
-                        ('param:quantity', ('+', 3, 10), ())))
+                       ('*', 4, ('+', 3, 10)))
 
     def test_mixed_unit_op_order_simple(self):
         test = '1 / mm^3'
@@ -256,7 +300,7 @@ class TestExpr(unittest.TestCase):
 
     def test_infix_expr_many(self):
         text = '1 * 3 * 2 * 4'
-        out = infix_expression(text)
+        out = parameter_expression(text)
         test = (True,
                 (('*',
                   ('param:quantity', 1, ()),
@@ -268,7 +312,7 @@ class TestExpr(unittest.TestCase):
 
     def test_infix_expr_op_order_plus_mult(self):
         text = '1 * 2 + 4 * 3'
-        out = infix_expression(text)
+        out = parameter_expression(text)
         test = (True,
                 (('+',
                   ('*',
@@ -282,7 +326,7 @@ class TestExpr(unittest.TestCase):
 
     def test_infix_expr_op_order_plus_mult_2(self):
         text = '2 * 1 + 4 * 5 * 3'
-        out = infix_expression(text)
+        out = parameter_expression(text)
         test = (True,
                 (('+',
                   ('*',
@@ -298,7 +342,7 @@ class TestExpr(unittest.TestCase):
     def test_infix_expr_noncommutative(self):
         """ do not reorder across non-commutative functions """
         text = '3 ^ 2'  # can't use subtraction since we don't parse it
-        out = infix_expression(text)
+        out = parameter_expression(text)
         test = (True,
                 (('^',
                   ('param:quantity', 3, ()),

@@ -83,22 +83,50 @@ def op_order(return_value):
                             val = f, r
                         else:
                             val = r, f
+
+                        return (op, *val)
+
+                    elif isinstance(f, numbers.Number):
+                        if r[0] == op:
+                            # this means that the operator on f is also op
+                            # and so if op commutes then we can reorder
+                            if op in commutative:
+                                val = sorted((f, *r[1:]))
+                            else:
+                                val = f, *r[1:]
+
+                        else:
+                            val = f, r
+
+                    elif isinstance(r, numbers.Number):
+                        if f[0] == op:
+                            if op in commutative:
+                                val = sorted((f[1:], r))
+                            else:
+                                val = *f[1:], r
+                        else:
+                            val = r, f
+
                     elif f[0] == op and r[0] == op:
                         val = *f[1:], *r[1:]
                         if op in commutative:
                             val = sorted(val, key=key)
+
                     elif f[0] == op:
                         if op in commutative:
                             val = *sorted(f[1:], key=key), r
                         else:
                             val = *f[1:], r
+
                     elif r[0] == op:
                         # this means that the operator on f is also op
                         # and so if op commutes then we can reorder
+                        # I think this works because it implies that f[0] is absent??!
                         if op in commutative:
                             val = sorted((f, *r[1:]), key=key)
                         else:
                             val = f, *r[1:]
+
                     else:
                         val = f, r
                 else:
@@ -141,7 +169,9 @@ plus_or_minus = transform_value(OR(plus_or_minus_symbol, plus_or_minus_pair, plu
 addition = COMP('+')
 subtraction = dash_thing
 division = COMP('/')
-multiplication = RETVAL(OR(COMP('*'), by), '*')  # safe since we added lookahead to dimensions
+multiplication = RETVAL(OR(COMP('*'), by), '*')  # ok as long as dimensions are specced with units 1 mm x 1 mm
+# there is actually no way to tell the difference between
+# 10 x 20 mm as 10 mm x 20 mm and 10 x 20 mm = 200 mm
 math_op = OR(addition, subtraction, division, multiplication, exponent)  # FIXME subtraction is going to be a pain
 unit_op = OR(division, multiplication)
 lt = COMP('<')
@@ -207,19 +237,31 @@ def make_unit_parser(units_path=None, dicts=None):
     # FIXME range vs minus ...
     infix_operator = OR(plus_or_minus, range_indicator, math_op)  # colon? doesn't really operate on quantities, note that * and / do not interfere with the unit parsing because that takes precedence
 
-    def num_par(thing): return num_expression(thing)
-    def num_expr(thing): return num_expression(thing)
+    #def num_par(thing): return num_expression(thing)
+    #def num_expr(thing): return num_expression(thing)
 
+    def num_expression(thing): return OR(parOR(_num_expression), num)(thing)
+
+    num_thing = OR(num, BIND(parenthized(num_expression), flatten1))
     num_suffix = JOINT(COMPOSE(spaces, infix_operator),
-                       COMPOSE(spaces, OR(num, BIND(num_par, flatten1))))
+                       COMPOSE(spaces, num_thing))
 
-    _num_expression = BIND(BIND(JOINT(OR(num, BIND(parenthized(num_expr), flatten1)),
+    _num_expression = BIND(BIND(JOINT(num_thing,
                                       BIND(MANY1(num_suffix),
                                            flatten1)),
                                 flatten),
                            op_order)
 
-    num_expression = OR(BIND(parenthized(_num_expression), flatten1), num)  # all of these flatten
+    #_num_expression = BIND(JOINT(num_thing, MANY1(num_suffix)), op_order)
+
+    #test = '0 + 0'
+    #ok, out, rest = num_expression(test)
+    #from IPython import embed
+    #embed()
+    #import sys
+    #sys.exit()
+
+    #num_expression = OR(BIND(parenthized(_num_expression), flatten1), num)  # all of these flatten
 
     _C_for_temp = COMP('C')
     C_for_temp = RETVAL(_C_for_temp, BOX(_silookup['degrees-celsius']))
@@ -280,6 +322,10 @@ def make_unit_parser(units_path=None, dicts=None):
     _prefix_quantity = JOINT(prefix_unit, COMPOSE(spaces, num_expression))  # OR(JOINT(fold, num))
     prefix_quantity = BIND(_prefix_quantity, FLOP)
 
+    # num only prefix quantities
+    _prefix_quantity_num_only = JOINT(prefix_unit, COMPOSE(spaces, num))  # OR(JOINT(fold, num))
+    prefix_quantity_num_only = BIND(_prefix_quantity, FLOP)
+
     fold_suffix = RETVAL(END(by, noneof('0123456789')), BOX("'fold"))  # NOT(num) required to prevent issue with dimensions
     suffix_unit = unit #OR(unit_implicit_count_ratio, unit)
     suffix_unit_no_space = OR(param('unit')(OR(EXACTLY_ONE(fold_suffix), C_for_temp)), unit_starts_with_dash)  # FIXME this is really bad :/ and breaks dimensions...
@@ -290,17 +336,36 @@ def make_unit_parser(units_path=None, dicts=None):
     def infix_par(thing): return parenthized(infix_expression)(thing)
     quantity = param('quantity')(OR(prefix_quantity, suffix_quantity))
 
+    # quantity expressions that require a trailing unit
+    suffix_quantity_with_unit = JOINT(num_expression,
+                                      OR(suffix_unit_no_space,
+                                         COMPOSE(spaces,
+                                                 suffix_unit)))
+    quantity_with_unit = param('quantity')(OR(prefix_quantity, suffix_quantity_with_unit))
+
+    # quantity expressions that require no numerical expressions, only numbers
+    suffix_quantity_num_only = JOINT(num,
+                                     OR(suffix_unit_no_space,
+                                        COMPOSE(spaces,
+                                                AT_MOST_ONE(suffix_unit, fail=False))))
+    quantity_num_only = param('quantity')(OR(prefix_quantity_num_only, suffix_quantity_num_only))
+
     _hmsret = lambda v: param('quantity')(JOINT(RETURN(hms(*v)), param('unit')(RETURN(("'seconds",)))))
     duration_hms = BIND(JOINT(SKIP(int_, colon), SKIP(int_, colon), int_, join=False), _hmsret)
     dilution_factor = param('dilution')(JOINT(SKIP(int_, colon), int_, join=False))
     sq = COMPOSE(spaces, quantity)
     sby = COMPOSE(spaces, by)
-    dimensions = param('dimensions')(BIND(JOINT(quantity,
-                                           MANY1(COMPOSE(COMPOSE(spaces,
-                                                                 SKIP(by,
-                                                                      spaces)),
-                                                         END(quantity, NOT(exponent))))),  # catch A x B^C
+    dimensions = param('dimensions')(BIND(JOINT(quantity_with_unit,
+                                                MANY1(COMPOSE(COMPOSE(spaces, SKIP(by, spaces)),
+                                                              END(quantity, NOT(exponent))))),  # catch A x B^C
                                           flatten))
+
+    # use this in situations where A x B implies dimensions rather than multiplication
+    # this is no longer the default assumption for the parser
+    dimensions_no_math = param('dimensions')(BIND(JOINT(quantity_num_only,
+                                                        MANY1(COMPOSE(COMPOSE(spaces, SKIP(by, spaces)),
+                                                                      END(quantity, NOT(exponent))))),
+                                                  flatten))
     prefix_operator = OR(approx, plus_or_minus, comparison)
     def infix_expr(thing): return parOR(infix_expression)(thing)
     infix_suffix = JOINT(COMPOSE(spaces, infix_operator),
@@ -347,6 +412,8 @@ def make_unit_parser(units_path=None, dicts=None):
                   'exp_short': exp_short,
                   'unit_thing': unit_thing,
                   'expression': expression,
+                  'num_thing': num_thing,
+                  'dimensions_no_math': dimensions_no_math,  # TODO
                  }
 
     return parameter_expression, quantity, unit, unit_atom, debug_dict
