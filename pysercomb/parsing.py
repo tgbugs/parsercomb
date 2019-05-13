@@ -57,6 +57,18 @@ __all__ = [
     'boolean',
 ]
 
+# utiltiy
+
+def wdebug(func):
+    def wrapped(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except BaseException as e:
+            breakpoint()
+            raise e
+
+    return wrapped
+
 # combinators
 
 def RETURN(v):
@@ -409,6 +421,7 @@ def flatten(return_value):
     return RETURN((first, *rest))
 
 def flatten1(return_value):
+    print(return_value)
     return RETURN(tuple(t for r in return_value for t in r))
 
 def noop(function):

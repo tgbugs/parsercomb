@@ -1211,6 +1211,8 @@ class UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs to
     def __new__(cls, string_to_parse, sexp=None):
         if sexp is None:  # needed for copy to work happily
             success, sexp, rest = cls._parameter_expression(string_to_parse)
+            if rest:
+                raise ValueError(f'Failed to parse suffix {rest}')
 
         self = super().__new__(cls, sexp)
         self._input = string_to_parse

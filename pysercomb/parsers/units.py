@@ -1,9 +1,8 @@
+import numbers
 from itertools import chain
-from pysercomb.utils import coln
+from pysercomb.utils import coln, log
 from pysercomb.parsing import *
 from pysercomb.parsers.racket import racket_doc
-from IPython import embed
-import sys
 
 def LEXEME(func):
     return COMPOSE(whitespace, SKIP(func, whitespace))
@@ -43,20 +42,48 @@ def op_order(return_value):
                 f = inner(front)
                 r = inner(rest)
                 if op in commutative:
-                    lf, lr = len(f), len(r)
+                    if isinstance(f, numbers.Number):
+                        lf = 0
+                    else:
+                        lf = len(f)
+
+                    if isinstance(r, numbers.Number):
+                        lr = 0
+                    else:
+                        lr = len(r)
+
                     if lf > lr:
                         f, r = r, f
-                    elif lf == lr:
+                    elif lf == lr != 0:
                         fcase = lf == 3 and isinstance(f[0], str) and f[0].startswith('param:')
                         rcase = lr == 3 and isinstance(r[0], str) and r[0].startswith('param:')
                         if fcase and rcase:
-                            if r[1] < f[1]:  # reorder commutative operations to be deterministic
+                            if isinstance(f[1], tuple):  # number expression
+                                if isinstance(r[1], tuple):
+                                    l1f, l1r = len(f[1]), len(r[1])
+                                    if l1f > l1r:
+                                        f, r = r, f  # put longer last
+                                    elif l1f == l1r:
+                                        pass   # TODO check relative values?
+                                else:
+                                    f, r = r, f  # put tuples last
+
+                            elif isinstance(r[1], tuple):  # number expression
+                                pass  # already ordered correctly with tuple last
+
+                            elif r[1] < f[1]:  # reorder commutative operations to be deterministic
                                 f, r = r, f
+
                         elif rcase:  # fcase is the default so don't need to handle it
                             f, r = r, f
 
                 if op in associative:  # assoc -> ok to move parens
-                    if f[0] == op and r[0] == op:
+                    if isinstance(f, numbers.Number) and isinstance(r, numbers.Number):
+                        if f < r:
+                            val = f, r
+                        else:
+                            val = r, f
+                    elif f[0] == op and r[0] == op:
                         val = *f[1:], *r[1:]
                         if op in commutative:
                             val = sorted(val, key=key)
@@ -85,9 +112,9 @@ def op_order(return_value):
 
         return subtree[0]
 
-    print(return_value)
+    log.debug(return_value)
     lisped = inner(return_value)
-    print(lisped)
+    log.debug(lisped)
     if lisped != return_value:
         return RETURN((lisped,))
     else:
@@ -102,6 +129,7 @@ def param(prefix_name):
         return BIND(parser_func, add_function_type)
     return paramed
 
+debug = param('debug')
 
 # basic tokens and operators
 _plus_or_minus = '±'
@@ -173,6 +201,26 @@ def make_unit_parser(units_path=None, dicts=None):
 
     def parenthized(func): return COMPOSE(LEXEME(COMP('(')), SKIP(func, LEXEME(COMP(')'))))
     def parOR(func): return OR(func, parenthized(func))
+
+    to = COMP('to')
+    range_indicator = transform_value(OR(thing_accepted_as_a_dash, to), lambda v: 'range')
+    # FIXME range vs minus ...
+    infix_operator = OR(plus_or_minus, range_indicator, math_op)  # colon? doesn't really operate on quantities, note that * and / do not interfere with the unit parsing because that takes precedence
+
+    def num_par(thing): return num_expression(thing)
+    def num_expr(thing): return num_expression(thing)
+
+    num_suffix = JOINT(COMPOSE(spaces, infix_operator),
+                       COMPOSE(spaces, OR(num, BIND(num_par, flatten1))))
+
+    _num_expression = BIND(BIND(JOINT(OR(num, BIND(parenthized(num_expr), flatten1)),
+                                      BIND(MANY1(num_suffix),
+                                           flatten1)),
+                                flatten),
+                           op_order)
+
+    num_expression = OR(BIND(parenthized(_num_expression), flatten1), num)  # all of these flatten
+
     _C_for_temp = COMP('C')
     C_for_temp = RETVAL(_C_for_temp, BOX(_silookup['degrees-celsius']))
     temp_for_biology = JOINT(num, C_for_temp, join=False)
@@ -192,29 +240,35 @@ def make_unit_parser(units_path=None, dicts=None):
     unit_thing = OR(exp_short, unit_atom)
     def unit_expr(thing): return parOR(unit_expr_atom)(thing)
     def unit_par(thing): return parenthized(unit_expr_atom)(thing)
+    #unit_implicit_count_ratio = BIND(LEXEME(division), lambda v: RETBOX((v[0], unit("count")[1], *v[1:])))
+    def UICR(func):
+        return BIND(JOINT(LEXEME(division), func),
+                    lambda v: RETBOX((v[0], unit("count")[1], *v[1:])))
+    #unit_op_prefix = unit_implicit_count_ratio
     unit_suffix = OR(JOINT(COMPOSE(spaces, unit_op),
                            COMPOSE(spaces, OR(unit_thing, BIND(unit_expr, flatten1)))),
                      COMPOSE(spaces, exp_no_op))
     # I think the issue is cases like 1 + (2 * 3) - 4 ...
-    unit_expr_atom = BIND(BIND(JOINT(OR(unit_thing, BIND(unit_par, flatten1)),
+    unit_expr_atom = BIND(BIND(JOINT(OR(UICR(unit_thing), #JOINT(unit_op_prefix, unit_thing),
+                                        unit_thing,
+                                        BIND(unit_par, flatten1)),
                                      BIND(MANY1(unit_suffix),
                                           flatten1)),
                                flatten),
                           op_order)
 
-    unit_expression = param('unit-expr')(unit_expr)
+    unit_expression = param('unit-expr')(OR(unit_expr,
+                                            BIND(exp_short, RETBOX),
+                                            UICR(unit_expr),
+                                            UICR(exp_short)))
 
     unit = OR(unit_expression, unit_atom)
+
     unit_starts_with_dash = COMPOSE(dash_thing, unit)  # derp
-    unit_implicit_count_ratio = BIND(JOINT(LEXEME(division),
-                                           unit,
-                                           join=False),
-                                     lambda v: RETBOX((v[0], unit("count")[1], *v[1:])))
+    #unit_implicit_count_ratio = param('unit-expr')(_unit_implicit_count_ratio)
 
     def plus_or_minus_thing(thing): return JOINT(plus_or_minus, COMPOSE(spaces, thing), join=False)
 
-    to = COMP('to')
-    range_indicator = transform_value(OR(thing_accepted_as_a_dash, to), lambda v: 'range')
     def range_thing(func): return JOINT(func, COMPOSE(spaces, range_indicator), COMPOSE(spaces, func))
 
     pH = RETVAL(COMP('pH'), BOX("'pH"))
@@ -223,16 +277,17 @@ def make_unit_parser(units_path=None, dicts=None):
     fold_prefix = RETVAL(_fold_prefix, BOX("'fold"))
 
     prefix_unit = param('prefix-unit')(OR(pH, post_natal_day, fold_prefix))
-    _prefix_quantity = JOINT(prefix_unit, COMPOSE(spaces, num))  # OR(JOINT(fold, num))
+    _prefix_quantity = JOINT(prefix_unit, COMPOSE(spaces, num_expression))  # OR(JOINT(fold, num))
     prefix_quantity = BIND(_prefix_quantity, FLOP)
 
     fold_suffix = RETVAL(END(by, noneof('0123456789')), BOX("'fold"))  # NOT(num) required to prevent issue with dimensions
-    _suffix_unit = param('unit')(OR(unit_implicit_count_ratio))
-    suffix_unit = OR(_suffix_unit, unit)
+    suffix_unit = unit #OR(unit_implicit_count_ratio, unit)
     suffix_unit_no_space = OR(param('unit')(OR(EXACTLY_ONE(fold_suffix), C_for_temp)), unit_starts_with_dash)  # FIXME this is really bad :/ and breaks dimensions...
-    suffix_quantity = JOINT(num, OR(suffix_unit_no_space,
-                                    COMPOSE(spaces,
-                                            AT_MOST_ONE(suffix_unit, fail=False))))  # this catches the num by itself and leaves a blank unit
+    suffix_quantity = JOINT(num_expression,
+                            OR(suffix_unit_no_space,
+                               COMPOSE(spaces,
+                                       AT_MOST_ONE(suffix_unit, fail=False))))  # this catches the num by itself and leaves a blank unit
+    def infix_par(thing): return parenthized(infix_expression)(thing)
     quantity = param('quantity')(OR(prefix_quantity, suffix_quantity))
 
     _hmsret = lambda v: param('quantity')(JOINT(RETURN(hms(*v)), param('unit')(RETURN(("'seconds",)))))
@@ -247,10 +302,10 @@ def make_unit_parser(units_path=None, dicts=None):
                                                          END(quantity, NOT(exponent))))),  # catch A x B^C
                                           flatten))
     prefix_operator = OR(approx, plus_or_minus, comparison)
-    infix_operator = OR(plus_or_minus, range_indicator, math_op)  # colon? doesn't really operate on quantities, note that * and / do not interfere with the unit parsing because that takes precedence
+    def infix_expr(thing): return parOR(infix_expression)(thing)
     infix_suffix = JOINT(COMPOSE(spaces, infix_operator),
-                         COMPOSE(spaces, quantity))
-    infix_expression = BIND(BIND(JOINT(quantity,
+                         COMPOSE(spaces, OR(quantity, BIND(infix_expr, flatten1))))
+    infix_expression = BIND(BIND(JOINT(OR(quantity, BIND(infix_par, flatten1)),
                                        BIND(MANY1(infix_suffix),
                                             flatten1)),
                                  flatten),
@@ -287,6 +342,11 @@ def make_unit_parser(units_path=None, dicts=None):
                   'unit_expr_atom': unit_expr_atom,
                   'unit_expr': unit_expr,
                   'unit_expression': unit_expression,
+                  'num_expression': num_expression,
+                  'suffix_unit': suffix_unit,
+                  'exp_short': exp_short,
+                  'unit_thing': unit_thing,
+                  'expression': expression,
                  }
 
     return parameter_expression, quantity, unit, unit_atom, debug_dict

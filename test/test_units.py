@@ -65,6 +65,36 @@ class TestUnit(unittest.TestCase):
         out = pyru.UnitsParser(' 0.1M')
         assert out == ('param:quantity', 0.1, ('param:unit', "'molarity"))
 
+    def test_unit_exp(self):
+        res = exp_short('mm^3')
+        _, out, _ = res
+        assert out == ('^', ('param:unit', "'meters", "'milli"), 3), res
+
+        res = unit_thing('mm^3')
+        _, out, _ = res
+        assert out == ('^', ('param:unit', "'meters", "'milli"), 3), res
+
+        # should fail
+        #res = unit_expr_atom('mm^3')
+        #_, out, _ = res
+        #assert out == ('^', ('param:unit', "'meters", "'milli"), 3), res
+
+        #res = unit('mm^3')
+
+        res = unit_expression('mm^3')
+        _, out, _ = res
+        assert out == ('param:unit-expr', ('^', ('param:unit', "'meters", "'milli"), 3)), res
+
+        res = suffix_unit('mm^3')
+        _, out, _ = res
+        assert out == ('param:unit-expr', ('^', ('param:unit', "'meters", "'milli"), 3)), res
+
+    def test_implicit_count_ratio(self):
+        ok, out, rest = suffix_unit(' / mm^3')
+        assert out == ('param:unit-expr',
+                       ('/', ('param:unit', "'count"),
+                        ('^', ('param:unit', "'meters", "'milli"), 3))), (ok, out, rest)
+
     def test_parens(self):
         tests = (('s * m', ()),
                  ('s * mm', ()),
@@ -114,45 +144,95 @@ class TestUnit(unittest.TestCase):
 
 
 class TestExpr(unittest.TestCase):
+    def test_oon(self):
+        res = num_expression('0 + 0 + 0')
+        _, out, _ = res
+        assert out, res
+
+    def test_oom(self):
+        res = num_expression('(0 + 0 + 0)')
+        _, out, _ = res
+        assert out, res
+
+    def test_ooo(self):
+        """ breaks the parser """
+        res = num_expression('((0 + 0) + 0)')
+        _, out, _ = res
+        assert out, res
+
+        res = infix_expression('((0 + 0) + 0)')
+        _, out, _ = res
+        assert out, res
+
+        res = parameter_expression('((0 + 0) + 0)')
+        _, out, _ = res
+        assert out, res
+
+    def test_mixed_expr(self):
+        tests = (
+            ('(1 + 2) * (3 + 4)', ()),
+            ('1 / mm^3', ()),
+            ('(1 + 2) mm', ()),
+            ('(3 + 4) mm^3', ()),
+            ('(0 + 0) / mm^3', ()),
+            ('(0 + (0 + 0))', ()),
+            ('1 / 2 + 3 - 4', ()),
+            ('1 / (2 + 3) - 4', ()),
+            ('(1 / (2 + 3) - 4)', ()),
+            ('(1 / (2 + 3) - 4) mm', ()),
+            ('(1 / (2 + 3) - 4) mm^3', ()),
+            ('(1 / (2 + 3) - 4) / mm^3', ()),
+        )
+        #qtest = [quantity(t) for t, e in tests]
+        #qbad = [r for r in qtest if r[-1]]
+        #assert not qbad, qbad
+        #entest = [expression(t) for t, e in tests]
+        #enbad = [r for r in entest if r[-1]]
+
+        pentest = [parameter_expression(t) for t, e in tests]
+        penbad = [r for r in pentest if r[-1]]
+        assert not penbad, '\n' + '\n'.join([f'{t}' for t in penbad])
+
+    def test_num_expression(self):
+        tests = (
+            ('1', (True, 1, '')),
+            ('1 + 2', (True, 1, ' + 2')),
+            ('(1 + 2)', (True, ('+', 1, 2), '')),
+        )
+        ntest = [(t, num_expression(t), e) for t, e in tests]
+        nbad = [(t, r, e) for t, r, e in ntest if r != e]
+        assert not nbad, '\n' + '\n'.join([f'{t}' for t in nbad])
+
     def test_parens(self):
-        test = '(10 + 3) * 4'
+        test = '(10 + 3) * 4'  # FIXME should be able to subsum all of this into a single expr
         _, out, _ = parameter_expression(test)
         assert out == ('param:expr',
                        ('*',
                         ('param:quantity', 4, ()),
-                        ('+', 
-                         ('param:quantity', 10, ()),
-                         ('param:quantity', 3, ()))))
+                        ('param:quantity', ('+', 3, 10), ())))
 
     def test_mixed_unit_op_order_simple(self):
         test = '1 / mm^3'
         _, out, _ = parameter_expression(test)
-        assert out == ('param:expr',
-                       ('param:quantity', 1,
-                        ('param:unit',
-                           ('/', ('param:unit', "'count"),
-                            ('^',
-                             ('param:unit', "'meters", "'milli"),
-                             ('param:quantity', 3, ()))))))
+        print(out)
+        assert out == ('param:quantity',
+                       1,
+                       ('param:unit-expr',
+                        ('/', ('param:unit', "'count"),
+                         ('^', ('param:unit', "'meters", "'milli"), 3))))
 
     def test_mixed_unit_op_order(self):
         test = '4.7 +- 0.6 x 10^7 / mm^3'
         test = '(4.7 +- 0.6 x 10^7) / mm^3'
         _, out, _ = parameter_expression(test)
-        assert out == ('param:expr',
-                       ('*',
-                        ('plus-or-minus',
-                         ('param:quantity', 4.7, ()),
-                         ('param:quantity', 0.6, ())),
-                        ('^',
-                         ('param:quantity', 10, ()),
-                         ('param:quantity',
-                          7,
-                          ('param:unit',
-                           ('/', ('param:unit', "'count"),
-                            ('^',
-                             ('param:unit', "'meters", "'milli"),
-                             ('param:quantity', 3, ()))))))))
+        print(out)
+        assert out == ('param:quantity',
+                       ('*',  # FIXME mark as param:expr?
+                        ('plus-or-minus', 4.7, 0.6),
+                        ('^', 10, 7)),
+                       ('param:unit-expr',
+                        ('/', ('param:unit', "'count"),
+                         ('^', ('param:unit', "'meters", "'milli"), 3))))
 
     def test_prefix_infix_expr(self):
         text = '~1 - 3 mm'
