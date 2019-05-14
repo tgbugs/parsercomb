@@ -57,6 +57,7 @@ class _PrefixUnit(_Unit):
 
 
 class _Quant(ur.Quantity):
+    tag = 'quantity'
     def to_base_units(self):
         """Return Quantity rescaled to base units
         """
@@ -73,7 +74,12 @@ class _Quant(ur.Quantity):
 
     def json(self):
         # FIXME prefix vs suffix quantities
-        return dict(type='quantity', value=self.magnitude, unit=self.units.json())
+        return dict(type=self.tag, value=self.magnitude, unit=self.units.json())
+
+    @classmethod
+    def fromJson(cls, json):
+        assert json['type'] == cls.tag
+        return cls(json['value'], json['unit'])
 
     def asRdf(self, subject):
         nq = self.to_base_units()
@@ -773,6 +779,24 @@ class Range(Oper):
         return dict(type=self.tag,
                     start=self.left.json(),
                     stop=self.right.json())
+
+    @classmethod
+    def fromJson(cls, json):
+        assert json['type'] == cls.tag
+        startj = json['start']
+        stopj = json['stop']
+        # TODO need a registry of these
+        if startj['type'] == 'quantity':
+            start = ur.Quantity.fromJson(startj)
+        else:
+            raise ValueError(startj)
+
+        if stopj['type'] == 'quantity':
+            stop = ur.Quantity.fromJson(stopj)
+        else:
+            raise ValueError(stopj)
+
+        return cls(start, stop)
 
     def asRdf(self, subject=None):
         # TODO correctly done inside a restriction as well
