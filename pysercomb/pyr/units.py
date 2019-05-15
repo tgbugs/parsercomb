@@ -49,7 +49,7 @@ class _Unit(ur.Unit):
         return str(self)
 
     def asRdf(self):
-        return rdflib.Literal(unit[str(self)])
+        return unit[str(self)]
 
 
 class _PrefixUnit(_Unit):
