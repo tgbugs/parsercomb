@@ -17,7 +17,7 @@ try:
     import rdflib
     # FIXME do not want circular imports incoming ...
     from pyontutils.namespaces import TEMP, OntCuries
-    from pyontutils.namespaces import prot, proc, tech, asp, dim, unit
+    from pyontutils.namespaces import prot, proc, tech, asp, dim, unit, ilxtr
     from pyontutils.closed_namespaces import rdf, owl, rdfs
     xsd = rdflib.XSD
     a = rdf.type
@@ -81,15 +81,18 @@ class _Quant(ur.Quantity):
         assert json['type'] == cls.tag
         return cls(json['value'], json['unit'])
 
-    def asRdf(self, subject):
+    def asRdf(self, subject, rdftype=None):
+        if rdftype is None:
+            rdftype = ilxtr.Quantity
         nq = self.to_base_units()
         magnitude = TypeCaster.cast(nq.magnitude)
+        yield subject, a, rdftype
         if not self.units:  # FIXME ... predicate how?
-            yield subject, TEMP.hasValue, magnitude.asRdf()
+            yield subject, rdf.value, magnitude.asRdf()
             return
 
         #value, unit = self.units.asRdf(self.magnitude)
-        yield subject, TEMP.hasValue, magnitude.asRdf()
+        yield subject, rdf.value, magnitude.asRdf()
         yield subject, TEMP.hasUnit, nq.units.asRdf()
 
     @property
@@ -377,44 +380,6 @@ class LoR(Oper):
         value = self.value
         if self.value is None:
             return self.unit
-    @express
-    def asRdf(self, subject_or_value=None):
-        breakpoint()
-        l = self.left
-        r = self.right
-
-        # FIXME order of operations
-        if isinstance(l, Quantity):
-            subject = subject_or_value
-            # TODO triple conv as well
-            value_ = getattr(l.value, self._op)(r.value)
-            #value, unit_ = getattr(l.unit, self._op)(r.unit).asRdf(value_)
-            unit_, *rest = getattr(l.unit, self._op)(r.unit).asRdf()
-
-            yield subject, TEMP.hasValue, value.asRdf()
-            yield subject, TEMP.hasUnit, unit_
-
-        elif isinstance(l, Unit):
-            # FIXME everything except the rdf conversion should go to pyr
-            value = subject_or_value
-            prefix = getattr(l.prefix, self._op)(r.prefix)
-            unit_ = getattr(l.unit, self._op)(r.unit)
-            unit_rdf = unit_.asRdf()
-            if value is not None:
-                base_value = TypeCaster.cast(prefix.to_base(value))  #  FIXME I think __pow__ on 10 is what causes the issue
-                yield base_value.asRdf()
-            if isinstance(unit_, self.__class__):
-                yield from unit_rdf
-            else:
-                yield unit_rdf
-
-        elif isinstance(l, UnitSuffix):
-            yield f'{l}{self.op}{r}'  # FIXME TODO
-            return
-
-        else:
-            breakpoint()
-            raise ValueError(subject_or_value)
 
 
 class Add(LoR):
@@ -798,7 +763,9 @@ class Range(Oper):
 
         return cls(start, stop)
 
-    def asRdf(self, subject=None):
+    def asRdf(self, subject=None, quantity_rdftype=None):
+        # FIXME what to do about quantity_rdftype??
+
         # TODO correctly done inside a restriction as well
         if subject is None:
             subject = rdflib.BNode()
@@ -814,7 +781,7 @@ class Range(Oper):
         type_ = (xsd.integer if
                  isinstance(nl, int) and
                  isinstance(nr, int)
-                 else xsd.real)
+                 else xsd.real)  # FIXME owl:real isn't in the namespace but people use it anyway?
 
         if nl.units:
             type_ = nl.units.asRdf()
