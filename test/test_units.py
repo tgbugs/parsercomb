@@ -209,6 +209,21 @@ class TestNumExpr(unittest.TestCase):
         _, out, _ = res
         assert out == ('param:expr', ('+', 0, 0, 0)), res
 
+    def test_8(self):
+        res = self.func('(25)')
+        _, out, _ = res
+        assert out == 25, res
+
+    def test_8_0(self):
+        res = self.func('-25')
+        _, out, _ = res
+        assert out == -25, res
+
+    def test_9(self):
+        res = self.func('(-25)')
+        _, out, _ = res
+        assert out == -25, res
+
 
 class TestExpr(unittest.TestCase):
     def test_mixed_expr(self):

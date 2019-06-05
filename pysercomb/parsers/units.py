@@ -237,10 +237,10 @@ def make_unit_parser(units_path=None, dicts=None):
     # FIXME range vs minus ...
     infix_operator = OR(plus_or_minus, range_indicator, math_op)  # colon? doesn't really operate on quantities, note that * and / do not interfere with the unit parsing because that takes precedence
 
-    def num_expression(thing): return OR(param('expr')(parOR(_num_expression)), num)(thing)
+    def num_expression(thing): return OR(param('expr')(parOR(_num_expression)), parOR(num))(thing)
     def num_expression_inner(thing): return OR(parOR(_num_expression), num)(thing)
 
-    num_thing = OR(num, BIND(parenthized(num_expression_inner), flatten1))
+    num_thing = OR(parOR(num), BIND(parenthized(num_expression_inner), flatten1))
     num_suffix = JOINT(COMPOSE(spaces, infix_operator),
                        COMPOSE(spaces, num_thing))
 
