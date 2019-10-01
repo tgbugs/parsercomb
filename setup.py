@@ -38,6 +38,7 @@ setup(name='pysercomb',
           'pysercomb.parsers',
           'pysercomb.pyr',
       ],
+      package_data={'pysercomb.pyr': ['pyr_units.txt']},
       python_requires='>=3.6',
       tests_require=tests_require,
       install_requires=['pint', 'uncertainties'],  # need to fix pint deps
