@@ -1,4 +1,4 @@
-# https://travis-ci.org/tgbugs/hyputils
+# https://travis-ci.org/tgbugs/parsercomb
 sudo: false
 language: python
 env:

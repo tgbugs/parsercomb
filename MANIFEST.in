@@ -1,4 +1,5 @@
 recursive-include test *
+include pysercomb/pyr/pyr_units.txt
 exclude .gitignore
 exclude .travis.yml
 exclude MANIFEST.in
