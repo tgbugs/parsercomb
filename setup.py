@@ -15,7 +15,8 @@ __version__ = find_version('pysercomb/__init__.py')
 with open('README.md', 'rt') as f:
     long_description = f.read()
 
-tests_require = ['pytest', 'pytest-runner']
+rdf_requre = ['neurdflib', 'pyontutils']
+tests_require = ['pytest', 'pytest-runner'] + rdf_require
 setup(name='pysercomb',
       version=__version__,
       description='parser combinator library and assorted parsers',
@@ -43,6 +44,7 @@ setup(name='pysercomb',
       tests_require=tests_require,
       install_requires=['pint', 'uncertainties'],  # need to fix pint deps
       extras_require={'units': ['protcur'],
+                      'rdf': rdf_require,
                       'test': tests_require,
                      },
       scripts=[],

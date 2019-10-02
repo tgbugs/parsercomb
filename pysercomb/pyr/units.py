@@ -6,7 +6,6 @@ import itertools
 from enum import Enum
 from pathlib import Path
 import pint
-from pyontutils import combinators as cmb
 from pysercomb import exceptions as exc
 from pysercomb.utils import log, logd, express
 from pysercomb.types import TypeCaster, boolc, intc, strc
@@ -15,6 +14,7 @@ from protcur.config import __script_folder__ as pasf
 
 try:
     import rdflib
+    from pyontutils import combinators as cmb
     # FIXME do not want circular imports incoming ...
     from pyontutils.namespaces import TEMP, OntCuries
     from pyontutils.namespaces import prot, proc, tech, asp, dim, unit, ilxtr
