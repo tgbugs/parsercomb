@@ -15,7 +15,7 @@ __version__ = find_version('pysercomb/__init__.py')
 with open('README.md', 'rt') as f:
     long_description = f.read()
 
-rdf_requre = ['neurdflib', 'pyontutils']
+rdf_require = ['neurdflib', 'pyontutils']
 tests_require = ['pytest', 'pytest-runner'] + rdf_require
 setup(name='pysercomb',
       version=__version__,
