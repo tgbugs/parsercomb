@@ -1,5 +1,6 @@
 import pprint
 import unittest
+import pytest
 import rdflib
 from pysercomb import exceptions as exc
 from pysercomb.parsers.units import DEGREES_FEAR
@@ -17,6 +18,7 @@ class TestPint(unittest.TestCase):
         #three = ur.parse_units('%')  # a bare percent conflicts with python mod
         #print(three)
 
+    @pytest.mark.skip('Expected to fail since the pint parser is simpler than ours.')
     def test_all(self):
         from pint import UnitRegistry
         bads = []
