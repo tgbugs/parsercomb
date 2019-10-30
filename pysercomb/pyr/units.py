@@ -10,7 +10,7 @@ from pysercomb import exceptions as exc
 from pysercomb.utils import log, logd, express
 from pysercomb.types import TypeCaster, boolc, intc, strc
 from pysercomb.parsers.units import get_unit_dicts, _plus_or_minus, make_unit_parser
-from protcur.config import __script_folder__ as pasf
+from protcur.config import __units_folder__ as units_path
 
 try:
     import rdflib
@@ -144,7 +144,6 @@ class UnitsHelper:
 
         UnitsHelper.__setup = True
 
-        units_path = Path(pasf, '../../protc-lib/protc/units')
         dicts = get_unit_dicts(units_path)
 
         (parameter_expression, quantity, unit, *_,
