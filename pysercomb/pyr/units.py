@@ -4,6 +4,7 @@ import copy
 import pprint
 import itertools
 from enum import Enum
+from urllib.parse import quote
 from pathlib import Path
 import pint
 from pysercomb import exceptions as exc
@@ -49,7 +50,7 @@ class _Unit(ur.Unit):
         return str(self)
 
     def asRdf(self):
-        return unit[str(self)]
+        return unit[quote(str(self), safe=tuple())]
 
 
 class _PrefixUnit(_Unit):
