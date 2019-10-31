@@ -16,7 +16,8 @@ with open('README.md', 'rt') as f:
     long_description = f.read()
 
 rdf_require = ['neurdflib', 'pyontutils']
-tests_require = ['pytest', 'pytest-runner'] + rdf_require
+units_require = ['protcur']
+tests_require = ['pytest', 'pytest-runner'] + rdf_require + units_require
 setup(name='pysercomb',
       version=__version__,
       description='parser combinator library and assorted parsers',
@@ -43,7 +44,7 @@ setup(name='pysercomb',
       python_requires='>=3.6',
       tests_require=tests_require,
       install_requires=['pint', 'uncertainties', 'babel'],  # need to fix pint deps
-      extras_require={'units': ['protcur'],
+      extras_require={'units': units_require,
                       'rdf': rdf_require,
                       'test': tests_require,
                      },
