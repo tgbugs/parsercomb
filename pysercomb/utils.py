@@ -18,7 +18,7 @@ def makeSimpleLogger(name, level=logging.INFO):
 
 
 log = makeSimpleLogger('pysercomb')
-logd = makeSimpleLogger('pysercomb-data')
+logd = log.getChild('data')
 
 
 def coln(n, iterable):
