@@ -22,7 +22,7 @@ install:
   - pipenv install --system --skip-lock --deploy
 
 script:
-  - pipenv run pytest
+  - pipenv run pytest --cov=pysercomb
 
 after_success:
-  - if [[ $HAS_COVERALLS ]] ; then coveralls ; fi
+  - if [[ $HAS_COVERALLS && TRAVIS_PYTHON_VERSION == 3.7 ]] ; then coveralls ; fi
