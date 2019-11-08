@@ -22,7 +22,7 @@ install:
   - pipenv install --system --skip-lock --deploy
 
 script:
-  - PYTHONWARNINGS=ignore pipenv run pytest --verbose --color=yes --cov=pysercomb
+  - pipenv run pytest
 
 after_success:
   - if [[ $HAS_COVERALLS ]] ; then coveralls ; fi
