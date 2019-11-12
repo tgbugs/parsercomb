@@ -25,4 +25,4 @@ script:
   - pipenv run pytest --cov=pysercomb
 
 after_success:
-  - if [[ $HAS_COVERALLS && TRAVIS_PYTHON_VERSION == 3.7 ]] ; then coveralls ; fi
+  - if [[ $HAS_COVERALLS && $TRAVIS_PYTHON_VERSION == 3.7 ]] ; then coveralls ; fi
