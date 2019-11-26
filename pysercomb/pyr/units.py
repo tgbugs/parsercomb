@@ -1246,6 +1246,15 @@ class UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs to
     def asPython(self):
         return self._ParamParser()(self)  # FIXME ... needs to be more flexible
 
+    def __getnewargs_ex__(self):
+        return (self._input,), {}
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
     def __copy__(self):
         cls = self.__class__
         result = cls.__new__(cls, self._input, sexp=self)
