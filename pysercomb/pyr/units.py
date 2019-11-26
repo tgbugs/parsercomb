@@ -30,6 +30,7 @@ ur = pint.UnitRegistry()
 ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
 ur.default_system = 'mgs'  # SNAAAKKEEEEE system
 
+
 class _Unit(ur.Unit):
     def format_babel(self, spec='', **kwspec):
         spec = spec or self.default_format
@@ -182,6 +183,13 @@ class UnitsHelper:
         # TODO
         UnitsHelper.conversion = {'__truediv__':[],
                                   '__mul__':[]}
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
+        self.__dict__.update(state)
 
 
 class SExpr(tuple):
