@@ -188,7 +188,6 @@ class UnitsHelper:
         return self.__dict__
 
     def __setstate__(self, state):
-        ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
         self.__dict__.update(state)
 
 
