@@ -104,6 +104,10 @@ class _Quant(ur.Quantity):
         [graph.add(t) for t in self.asRdf(rdflib.BNode())]
         return graph.serialize(format='nifttl')
 
+    def __reduce__(self):
+        f, mag, *units = super().__reduce__()
+        return (ur.Quantity, mag, *units)
+
 
 ur.Unit = _Unit
 ur.Quantity = _Quant
@@ -183,12 +187,6 @@ class UnitsHelper:
         # TODO
         UnitsHelper.conversion = {'__truediv__':[],
                                   '__mul__':[]}
-
-    def __getstate__(self):
-        return self.__dict__
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
 
 
 class SExpr(tuple):
@@ -1255,12 +1253,6 @@ class UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs to
 
     def __getnewargs_ex__(self):
         return (self._input,), {}
-
-    def __getstate__(self):
-        return self.__dict__
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
 
     def __copy__(self):
         cls = self.__class__
