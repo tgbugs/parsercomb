@@ -116,5 +116,6 @@ class TestUnits(unittest.TestCase):
         #breakpoint()
 
     def test_brokens(self):
+        import ttlser  # workaround for entrypoints brokenness
         should_ser = pyru.UnitsParser('123 kHz / 1 J*K').asPython()
         should_ser.ttl
