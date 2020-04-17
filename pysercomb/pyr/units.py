@@ -12,6 +12,7 @@ from pysercomb.utils import log, logd, express
 from pysercomb.types import TypeCaster, boolc, strc
 from pysercomb.parsers.units import _plus_or_minus
 from .core import ImplFactoryHelper , UnitsHelper, Expr
+from . import types as intf
 
 try:
     import rdflib
@@ -31,7 +32,7 @@ ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
 ur.default_system = 'mgs'  # SNAAAKKEEEEE system
 
 
-class _Unit(ur.Unit):
+class _Unit(intf.Unit, ur.Unit):
     def format_babel(self, spec='', **kwspec):
         spec = spec or self.default_format
 
@@ -58,7 +59,7 @@ class _PrefixUnit(_Unit):
     pass
 
 
-class _Quant(ur.Quantity):
+class _Quant(intf.Quantity, ur.Quantity):
     tag = 'quantity'
     def to_base_units(self):
         """Return Quantity rescaled to base units

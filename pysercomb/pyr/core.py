@@ -1,6 +1,7 @@
 from protcur.config import __units_folder__ as units_path
 from pysercomb.parsers.units import get_unit_dicts, make_unit_parser
 from pysercomb.types import intc, strc
+from . import types as intf
 
 
 def chain(*tups):
@@ -79,7 +80,7 @@ class UnitsHelper:
                                   '__mul__':[]}
 
 
-class Expr(UnitsHelper, ImplFactoryHelper):
+class Expr(intf.ProtcurExpression, UnitsHelper, ImplFactoryHelper):
     op = None
 
     def __add__(self, other):
