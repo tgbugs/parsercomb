@@ -1,3 +1,4 @@
+import pickle
 import pprint
 import unittest
 import rdflib
@@ -85,6 +86,7 @@ class TestParam(unittest.TestCase):
         assert not bads, '\n' + join.join([f'{text!r}\n{new_text!r}\n{pa}\n{pb}'
                                            for text, new_text, pa, pb in bads])
 
+
 class TestUnitsParser:
     def test_simple(self):
         ten_mega_liters = UnitsParser('10ML')
@@ -119,3 +121,26 @@ class TestUnits(unittest.TestCase):
         import ttlser  # workaround for entrypoints brokenness
         should_ser = pyru.UnitsParser('123 kHz / 1 J*K').asPython()
         should_ser.ttl
+
+
+class TestPickle(unittest.TestCase):
+
+    def _doit(self, thing):
+        hrm = pickle.dumps(thing)
+        pickle.loads(hrm)
+
+    def test_quantity_unitful(self):
+        t = pyru._Quant('10 days')
+        self._doit(t)
+
+    def test_quantity_unitless(self):
+        t = pyru._Quant('10')
+        self._doit(t)
+
+    def test_range(self):
+        t = pyru.Range(pyru._Quant('1 week'), pyru._Quant('10 weeks'))
+        self._doit(t)
+
+    def test_unit(self):
+        t = pyru._Unit('month')
+        self._doit(t)

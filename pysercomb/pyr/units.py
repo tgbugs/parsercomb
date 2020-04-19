@@ -593,7 +593,7 @@ class GreaterThan(_Than, metaclass=gtclass):
     op = '>'
 
 
-class Range(Oper):
+class Range(intf.Range, Oper):
     """ This is a non-homogenous range, units may differ """
     op = '-'
     tag = 'range'
