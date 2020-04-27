@@ -22,7 +22,6 @@ try:
     from pyontutils.namespaces import prot, proc, tech, asp, dim, unit, ilxtr
     from pyontutils.closed_namespaces import rdf, owl, rdfs
     xsd = rdflib.XSD
-    a = rdf.type
     OntCuries({'unit':str(unit)})
 except ImportError:
     pass  # exception logged in rdftypes
@@ -89,18 +88,19 @@ class _Quant(intf.Quantity, ur.Quantity):
         return cls(json['value'], json['unit'])
 
     def asRdf(self, subject, rdftype=None):
+        """ to asRdf the normalized units use q.to_base_units().asRdf(s)"""
         if rdftype is None:
             rdftype = ilxtr.Quantity
-        nq = self.to_base_units()
-        magnitude = TypeCaster.cast(nq.magnitude)
-        yield subject, a, rdftype
+
+        magnitude = TypeCaster.cast(self.magnitude)
+        yield subject, rdf.type, rdftype
         if not self.units:  # FIXME ... predicate how?
             yield subject, rdf.value, magnitude.asRdf()
             return
 
         #value, unit = self.units.asRdf(self.magnitude)
         yield subject, rdf.value, magnitude.asRdf()
-        yield subject, TEMP.hasUnit, nq.units.asRdf()
+        yield subject, TEMP.hasUnit, self.units.asRdf()
 
     @property
     def ttl(self):
@@ -699,7 +699,7 @@ class Range(intf.Range, Oper):
             yield s, p, o
             yield o, xsd.maxInclusive, nrm.asRdf()
 
-        yield subject, a, rdfs.Datatype
+        yield subject, rdf.type, rdfs.Datatype
         yield subject, owl.onDatatype, type_
         yield from cmb.olist.serialize(subject, owl.withRestrictions, min_, max_)
 
