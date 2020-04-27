@@ -54,6 +54,10 @@ class _Unit(intf.Unit, ur.Unit):
     def asRdf(self):
         return unit[quote(str(self), safe=tuple())]
 
+    def __reduce__(self):
+        f, (unit, container) = super().__reduce__()
+        return f, (ur.Unit, container)
+
 
 class _PrefixUnit(_Unit):
     pass
@@ -106,8 +110,8 @@ class _Quant(intf.Quantity, ur.Quantity):
         return graph.serialize(format='nifttl')
 
     def __reduce__(self):
-        f, mag, *units = super().__reduce__()
-        return (ur.Quantity, mag, *units)
+        f, (quant, mag, *units) = super().__reduce__()
+        return f, (ur.Quantity, mag, *units)
 
 
 ur.Unit = _Unit
@@ -214,6 +218,11 @@ class LoR(Oper):
 
         self.left = left
         self.right = right
+
+    def __eq__(self, other):
+        return (self.__class__ == other.__class__ and
+                self.left == other.left and
+                self.right == other.right)
 
     #@property
     #def simplified(self):
@@ -605,6 +614,11 @@ class Range(intf.Range, Oper):
         # range could figure it out now with the info
         # provided, but for now is just going to be a dumb
         # container
+
+    def __eq__(self, other):
+        return (self.__class__ == other.__class__ and
+                self.left == other.left and
+                self.right == other.right)
 
     def __mul__(self, other):
         # FIXME rmul on units?

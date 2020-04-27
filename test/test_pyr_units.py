@@ -122,12 +122,18 @@ class TestUnits(unittest.TestCase):
         should_ser = pyru.UnitsParser('123 kHz / 1 J*K').asPython()
         should_ser.ttl
 
+    def test_range_eq(self):
+        r1 = pyru.Range(pyru._Quant('1 week'), pyru._Quant('10 weeks'))
+        r2 = pyru.Range(pyru._Quant('1 week'), pyru._Quant('10 weeks'))
+        assert r1 == r2
+
 
 class TestPickle(unittest.TestCase):
 
     def _doit(self, thing):
         hrm = pickle.dumps(thing)
-        pickle.loads(hrm)
+        tv = pickle.loads(hrm)
+        assert tv == thing
 
     def test_quantity_unitful(self):
         t = pyru._Quant('10 days')
