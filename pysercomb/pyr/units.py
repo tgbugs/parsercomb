@@ -63,7 +63,7 @@ class _PrefixUnit(_Unit):
 
 
 class _Quant(intf.Quantity, ur.Quantity):
-    tag = 'quantity'
+
     def to_base_units(self):
         """Return Quantity rescaled to base units
         """
@@ -605,7 +605,6 @@ class GreaterThan(_Than, metaclass=gtclass):
 class Range(intf.Range, Oper):
     """ This is a non-homogenous range, units may differ """
     op = '-'
-    tag = 'range'
 
     def __init__(self, left, right):
         self.left = left

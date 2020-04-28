@@ -7,10 +7,12 @@ class Unit:
 
 class Quantity:
     """ sigh python """
+    tag = 'quantity'
 
 
 class Range:
     """ sigh python """
+    tag = 'range'
 
 
 class ProtcurExpression:
