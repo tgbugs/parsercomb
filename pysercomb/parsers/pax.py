@@ -1,4 +1,5 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3.7
+""" parse Paxinos atlas index formats """
 from pysercomb.parsing import *
 
 LQUOTE = '‘'

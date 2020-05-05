@@ -2,7 +2,8 @@ import numbers
 from itertools import chain
 from pysercomb.utils import coln, log
 from pysercomb.parsing import *
-from pysercomb.parsers.racket import racket_doc
+from pysercomb.parsers.racket import racket_doc, racket_module
+
 
 def LEXEME(func):
     return COMPOSE(whitespace, SKIP(func, whitespace))
@@ -12,14 +13,12 @@ def get_quoted_list(folderpath, filename):
     with open((folderpath / filename).as_posix(), 'rt') as f:
         src = f.read()
         success, value, rest = racket_doc(src)
+
     if not success:
         raise SyntaxError(f'Something is wrong in {filename}. Parse output:\n{value}\n\n{rest}')
-    out = {}
-    for expression in value:
-        #print(expression)
-        if expression[0] == 'define':
-            name = expression[1].replace('-','_')
-            out[name] = expression[2]
+
+    module = racket_module(value)
+    out = {k.replace('-', '_'):v for k, v in module.items()}
     return out
 
 
@@ -164,7 +163,7 @@ _plus_or_minus = '±'
 plus_or_minus_symbol = COMP(_plus_or_minus)  # NOTE range and +- are interconvertable...
 plus_or_minus_pair = COMP('+-')  # yes that is an b'\x2d'
 plus_over_minus = COMP('+/-')
-plus_or_minus = transform_value(OR(plus_or_minus_symbol, plus_or_minus_pair, plus_over_minus), lambda v: 'plus-or-minus')
+plus_or_minus = RETVAL(OR(plus_or_minus_symbol, plus_or_minus_pair, plus_over_minus), 'plus-or-minus')
 
 addition = COMP('+')
 subtraction = dash_thing
@@ -233,7 +232,7 @@ def make_unit_parser(units_path=None, dicts=None):
     def parOR(func): return OR(func, parenthized(func))
 
     to = COMP('to')
-    range_indicator = transform_value(OR(thing_accepted_as_a_dash, to), lambda v: 'range')
+    range_indicator = RETVAL(OR(thing_accepted_as_a_dash, to), 'range')
     # FIXME range vs minus ...
     infix_operator = OR(plus_or_minus, range_indicator, math_op)  # colon? doesn't really operate on quantities, note that * and / do not interfere with the unit parsing because that takes precedence
 
@@ -440,11 +439,10 @@ def parse_for_tests(parameter_expression=None):
     from pathlib import Path
     from protcur.config import __units_test_params__ as test_params
     with open(test_params, 'rt') as f:
-        success, v, rest = racket_doc(f.read())
+        success, value, rest = racket_doc(f.read())
 
-    param_test_strings = tuple(s for e in v
-                               if e[0] == 'define' and e[1] == 'param-test-strings'
-                               for s in e[2])
+    module = racket_module(value)
+    param_test_strings = module['param-test-strings']
 
     _all = tests + prefix_expr_tests + weirds + should_fail + param_test_strings
     if parameter_expression:

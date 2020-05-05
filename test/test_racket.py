@@ -18,7 +18,21 @@ class TestForms(unittest.TestCase):
         _, v, rest = res
         assert v is None and rest == '1', (v, rest)
 
-    def test_nil(self):
+    def test_quote(self):
+        res = racket.racket_doc("'(a (1 . 2))")
+        print(res)
+        _, (v,), _ = res
+        assert v == ('quote', ('a', (1, 2)))
+
+    def test_cons_literal(self):
+        _, (v,), _ = racket.racket_doc("'(1 . 2)")
+        assert v == ('quote', (1 , 2))
+
+    def test_null_t_f(self):
+        _, (v,), _ = racket.racket_doc("'(null #t #f)")
+        assert v == ('quote', ('null', True, False))
+
+    def test_empty_list(self):
         _, (v,), _ = racket.racket_doc("'()")
         assert v is None
 
@@ -36,10 +50,12 @@ class TestForms(unittest.TestCase):
   (c . 1)))
 """
         res = racket.racket_doc(code)
-        _, v, _ = res
         print(res)
-        assert v == (('provide', 'something'),
-                     ('define', 'something',
-                      (('a', 'b'),
-                       (None, 0),
-                       ('c', 1)))), v
+        _, v, _ = res
+        assert v == ('module-unexp', None, ('racket/base',),
+                     ('module-begin',
+                      ('provide', 'something'),
+                      ('define', 'something',
+                       ('quote', (('a', 'b'),
+                                  (tuple(), 0),
+                                  ('c', 1))))))

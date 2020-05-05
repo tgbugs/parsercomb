@@ -15,7 +15,7 @@ __version__ = find_version('pysercomb/__init__.py')
 with open('README.md', 'rt') as f:
     long_description = f.read()
 
-rdf_require = ['neurdflib', 'pyontutils']
+rdf_require = ['rdflib>=5.0.0', 'pyontutils']
 units_require = ['protcur']
 tests_require = ['pytest', 'pytest-runner'] + rdf_require + units_require
 setup(name='pysercomb',
@@ -32,6 +32,7 @@ setup(name='pysercomb',
           'License :: OSI Approved :: MIT License',
           'Programming Language :: Python :: 3.6',
           'Programming Language :: Python :: 3.7',
+          'Programming Language :: Python :: 3.8',
       ],
       keywords=('python parsing parser combinator scientific '
                 'units parsec protc'),

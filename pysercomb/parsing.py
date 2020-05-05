@@ -6,6 +6,7 @@ infinity = 99999  # you know it baby, if we go this deep we will get recursion e
 __script_folder__ = os.path.dirname(os.path.realpath(__file__))
 
 __all__ = [
+    'ANDTHEN',
     'AT_MOST_ONE',
     'BIND',
     'BOX',
@@ -127,6 +128,8 @@ def MANY1(func):
     return TIMES(func, 1, infinity)
 
 def ANDTHEN(func1, func2):
+    """ match func1 func2 | rest
+        (func1 func2) -> """
     def andthen(p):
         success, v1, rest = func1(p)
         if success:
@@ -157,6 +160,9 @@ def JOINT_OR_FIRST(*funcs, join=False):  # TODO improve performance in cases whe
     pass
 
 def COMPOSE(func1, func2):
+    """ match func1 func2 | rest
+        func1 -x
+        func2 -> value """
     def compose(p):
         success, v, rest = func1(p)
         if success:
@@ -208,6 +214,9 @@ def END(func1, func2):
     return end_
 
 def SKIP(func1, func2):
+    """ match func1 func2 | rest
+        func1 -> value
+        func2 -x """
     def skip(p):
         success, v, rest = func1(p)
         if not success:
@@ -340,11 +349,11 @@ hyphen_minus = COMP(HYPHEN_MINUS)
 _dash_thing = OR(hyphen_minus, en_dash, minus_sign, hyphen)  # THERE ARE TOO MANY AND THEY ALL LOOK THE SAME
 dash_thing = RETVAL(_dash_thing, HYPHEN_MINUS)
 double_dash_thing = TIMES(dash_thing, 2)
-thing_accepted_as_a_dash = transform_value(OR(double_dash_thing, dash_thing), lambda v: HYPHEN_MINUS)
+thing_accepted_as_a_dash = BIND(OR(double_dash_thing, dash_thing), lambda v: RETURN(HYPHEN_MINUS))
 
 # basic tokens and operators
 thin_space = COMP('\u2009')  # sigh what bloodyminded program would ever produce these!!??!
-non_breaking_space = COMP('\xa0')
+non_breaking_space = COMP('\xa0')  # nbsp
 space = OR(COMP(' '), non_breaking_space, thin_space)
 spaces = MANY(space)
 spaces1 = MANY1(space)
