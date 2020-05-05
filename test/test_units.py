@@ -10,45 +10,45 @@ class TestForms(unittest.TestCase):
 
     def test_time_seconds(self):
         assert (parameter_expression('00:00:01')[1]
-                == ('param:quantity', 1, ('param:unit', "'seconds"))), 'duration failed'
+                == ('param:quantity', 1, ('param:unit', ('quote', 'seconds')))), 'duration failed'
 
     def test_time_minutes(self):
         assert (parameter_expression('00:01:01')[1]
-                == ('param:quantity', 61, ('param:unit', "'seconds"))), 'duration failed'
+                == ('param:quantity', 61, ('param:unit', ('quote', 'seconds')))), 'duration failed'
 
     def test_time_hours(self):
         assert (parameter_expression('01:01:01')[1]
-                == ('param:quantity', 3661, ('param:unit', "'seconds"))), 'duration failed'
+                == ('param:quantity', 3661, ('param:unit', ('quote', 'seconds')))), 'duration failed'
 
     def test_time_weird(self):
         assert (parameter_expression('1:99:01')[1]
-                == ('param:quantity', 9541, ('param:unit', "'seconds"))), 'duration failed'
+                == ('param:quantity', 9541, ('param:unit', ('quote', 'seconds')))), 'duration failed'
 
 
 class TestUnit(unittest.TestCase):
     def test_minutes(self):
         """ make sure we don't parse min -> milli inches """
-        assert unit('min') == (True, ('param:unit', "'minutes"), ''), 'min did not parse to minutes'
+        assert unit('min') == (True, ('param:unit', ('quote', 'minutes')), ''), 'min did not parse to minutes'
 
     def test_inches(self):
-        assert unit('in') == (True, ('param:unit', "'inches"), ''), 'in did not parse to inches'
+        assert unit('in') == (True, ('param:unit', ('quote', 'inches')), ''), 'in did not parse to inches'
 
     def test_ohms(self):
-        assert unit('R') == (True, ('param:unit', "'ohms"), ''), 'R did not parse to ohms'
+        assert unit('R') == (True, ('param:unit', ('quote', 'ohms')), ''), 'R did not parse to ohms'
 
     def test_rcf(self):
-        assert unit('RCF') == (True, ('param:unit', "'relative-centrifugal-force"), ''), 'RCF did not parse to relative-centrifugal-force'
+        assert unit('RCF') == (True, ('param:unit', ('quote', 'relative-centrifugal-force')), ''), 'RCF did not parse to relative-centrifugal-force'
 
     def test_newtons(self):
-        assert unit('N') == (True, ('param:unit', "'newtons"), ''), 'N did not parse to newtons'
+        assert unit('N') == (True, ('param:unit', ('quote', 'newtons')), ''), 'N did not parse to newtons'
 
     def test_numerical_aperture(self):
         msg = 'NA did not parse to numerical-aperture'
-        assert unit('NA') == (True, ('param:unit', "'numerical-aperture"), ''), msg
+        assert unit('NA') == (True, ('param:unit', ('quote', 'numerical-aperture')), ''), msg
 
     def test_fold(self):
         msg = 'Ax failed to parse as fold!'
-        assert parameter_expression('40x')[1] == ('param:quantity', 40, ('param:unit', "'fold")), msg
+        assert parameter_expression('40x')[1] == ('param:quantity', 40, ('param:unit', ('quote', 'fold'))), msg
 
     def test_dimensions(self):
         msg = 'A x B failed to parse as dimensions!'
@@ -56,55 +56,55 @@ class TestUnit(unittest.TestCase):
         # if you have the additional context then use dimensions_no_math
         assert parameter_expression('50 um x 50 um')[1] == ('param:dimensions',
                                                             ('param:quantity', 50,
-                                                             ('param:unit', "'meters", "'micro")),
+                                                             ('param:unit', ('quote', 'meters'), ('quote', 'micro'))),
                                                             ('param:quantity', 50,
-                                                             ('param:unit', "'meters", "'micro"))), msg
+                                                             ('param:unit', ('quote', 'meters'), ('quote', 'micro')))), msg
 
     def test_dimensions_no_math(self):
         assert dimensions_no_math('50 x 50 um')[1] == ('param:dimensions',
                                                        ('param:quantity', 50, ()),
                                                        ('param:quantity', 50,
-                                                        ('param:unit', "'meters", "'micro"))), msg
+                                                        ('param:unit', ('quote', 'meters'), ('quote', 'micro')))), msg
 
 
 
     def test_percent(self):
         msg = '% failed to parse'
-        assert parameter_expression('0.3%')[1] == ('param:quantity', 0.3, ('param:unit', "'percent")), msg
+        assert parameter_expression('0.3%')[1] == ('param:quantity', 0.3, ('param:unit', ('quote', 'percent'))), msg
 
     def test_molar_space(self):
         out = pyru.UnitsParser(' 0.1M')
-        assert out == ('param:quantity', 0.1, ('param:unit', "'molarity"))
+        assert out == ('param:quantity', 0.1, ('param:unit', ('quote', 'molarity')))
 
     def test_unit_exp(self):
         res = exp_short('mm^3')
         _, out, _ = res
-        assert out == ('^', ('param:unit', "'meters", "'milli"), 3), res
+        assert out == ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3), res
 
         res = unit_thing('mm^3')
         _, out, _ = res
-        assert out == ('^', ('param:unit', "'meters", "'milli"), 3), res
+        assert out == ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3), res
 
         # should fail
         #res = unit_expr_atom('mm^3')
         #_, out, _ = res
-        #assert out == ('^', ('param:unit', "'meters", "'milli"), 3), res
+        #assert out == ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3), res
 
         #res = unit('mm^3')
 
         res = unit_expression('mm^3')
         _, out, _ = res
-        assert out == ('param:unit-expr', ('^', ('param:unit', "'meters", "'milli"), 3)), res
+        assert out == ('param:unit-expr', ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3)), res
 
         res = suffix_unit('mm^3')
         _, out, _ = res
-        assert out == ('param:unit-expr', ('^', ('param:unit', "'meters", "'milli"), 3)), res
+        assert out == ('param:unit-expr', ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3)), res
 
     def test_implicit_count_ratio(self):
         ok, out, rest = suffix_unit(' / mm^3')
         assert out == ('param:unit-expr',
-                       ('/', ('param:unit', "'count"),
-                        ('^', ('param:unit', "'meters", "'milli"), 3))), (ok, out, rest)
+                       ('/', ('param:unit', ('quote', 'count')),
+                        ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3))), (ok, out, rest)
 
     def test_parens(self):
         tests = (('s * m', ()),
@@ -273,8 +273,8 @@ class TestExpr(unittest.TestCase):
         assert out == ('param:quantity',
                        1,
                        ('param:unit-expr',
-                        ('/', ('param:unit', "'count"),
-                         ('^', ('param:unit', "'meters", "'milli"), 3))))
+                        ('/', ('param:unit', ('quote', 'count')),
+                         ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3))))
 
     def test_mixed_unit_op_order(self):
         test = '4.7 +- 0.6 x 10^7 / mm^3'
@@ -287,8 +287,8 @@ class TestExpr(unittest.TestCase):
                          ('plus-or-minus', 4.7, 0.6),
                          ('^', 10, 7))),
                        ('param:unit-expr',
-                        ('/', ('param:unit', "'count"),
-                         ('^', ('param:unit', "'meters", "'milli"), 3))))
+                        ('/', ('param:unit', ('quote', 'count')),
+                         ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3))))
 
     def test_prefix_infix_expr(self):
         text = '~1 - 3 mm'
@@ -297,7 +297,7 @@ class TestExpr(unittest.TestCase):
                 (('approximately',
                   ('param:quantity',
                    ('param:expr', ('range', 1, 3)),
-                   ('param:unit', "'meters", "'milli"))
+                   ('param:unit', ('quote', 'meters'), ('quote', 'milli')))
                    ),),
                 '')
         assert out == test

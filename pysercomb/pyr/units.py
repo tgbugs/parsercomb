@@ -163,6 +163,16 @@ class SExpr(tuple):
     def format_value(cls, sexp, localIndent=0, depth=0):
         out = ''
         if sexp:
+            if sexp[0] == 'quote':  # TODO other quasiquote etc.
+                v = sexp[1]
+
+                if isinstance(v, tuple):
+                    out = cls.format_value(v)
+                else:
+                    out = v
+
+                return "'" + out
+
             newline = sexp[0] in cls.format_nl or cls.isLongNL(sexp)
             indent_for_this_loop = localIndent + len('(') + len(sexp[0]) + len(' ')  # vim fail )
             indent_for_next_level = indent_for_this_loop
@@ -771,6 +781,15 @@ class MacroDecorator:
         return function
 
 
+class Environment:
+    def __init__(self, namespaces=None, **kwargs):
+        if namespaces is None:
+            namespaces = {}
+
+        self.namespaces = namespaces
+        [setattr(self, k, v) for k, v in kwargs.items()]
+
+
 macro = MacroDecorator()
 @macro.has_macros
 class Interpreter:
@@ -789,15 +808,30 @@ class Interpreter:
         '>': 'greater_than',
     }
 
-    def __init__(self, environment=None):
+    def __init__(self, environment=Environment()):
         self.environment = environment
         self.pretty_printer = SExpr()
 
+        self._namespaces = self.environment.namespaces
+        if self.namespace not in self._namespaces:
+            self._namespaces[self.namespace] = self
+
+        [c(environment) for n, c in self._namespace_classes.items()
+         if c.namespace not in self._namespaces]
+
     def lisp_to_python(self, lisp_identifier):
         if lisp_identifier in self._renames:
-            return self._renames[lisp_identifier]
+            return self, self._renames[lisp_identifier]
 
-        return lisp_identifier.split(':', 1)[-1].replace('-', '_')
+        *namespace, name = lisp_identifier.split(':', 1)
+        if not namespace:
+            namespace = self  # unprefixed can be defined locally or on the Interperter base class
+        else:
+            namespace, = namespace
+            namespace = namespace.replace('-', '_')
+            namespace = self._namespaces[namespace]
+
+        return namespace, name.replace('-', '_')
 
     def __call__(self, sexp):
         try:
@@ -827,8 +861,8 @@ class Interpreter:
             return expression
 
         first, *rest = tup
-        pyfirst = self.lisp_to_python(first)
-        function_or_macro = getattr(self, pyfirst)
+        namespace, pyfirst = self.lisp_to_python(first)
+        function_or_macro = getattr(namespace, pyfirst)
         if pyfirst in self._macros:
             return function_or_macro(*rest)
 
@@ -837,11 +871,16 @@ class Interpreter:
 
         return function_or_macro(*value)  # apply is * woo
 
+    def quote(self, expression):
+        return expression
+
 
 macro = MacroDecorator()
 @macro.has_macros
 class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
     """ definitions for the param: namespace """
+
+    namespace = 'param'
 
     _Unit = None
     _PrefixUnit = None
@@ -873,7 +912,8 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
         if prefix is not None:
             prefix = self.eval(prefix)
 
-        unquoted_unit = quoted_unit[1:]
+        unquoted_unit = quoted_unit
+        #unquoted_unit = quoted_unit[1:]
         p = self._prefix(prefix)
         u = self._unit(unquoted_unit)
 
@@ -887,7 +927,6 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
 
     def _prefix(self, prefix):
         if prefix:
-            prefix = prefix[1:]
             return prefix
             #return self.prefix_dict[prefix]
         else:
@@ -1075,15 +1114,28 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
 
 macro = MacroDecorator()
 @macro.has_macros
-class Protc(Interpreter):
+class Protc(ImplFactoryHelper, Interpreter):
     """ definitions for the protc: namespace """
+
+    namespace = 'protc'
+
+    _BlackBox = None
+    _Input = None
+    _InputInstance = None
+    _Invariant = None
+    _Parameter = None
+    _Aspect = None
+
+    # NOTE namespaces aren't actuall real right now
 
     def black_box(self, args):
         pass
     def black_box_component(self, args):
         pass
-    def input(self, args):
-        pass
+    def input(self, black_box, prov, *rest):
+        bb = self.eval(black_box)
+        return self._Input(black_box, prov)
+
     def output(self, args):
         pass
     def aspect(self, args):
@@ -1173,3 +1225,6 @@ def _pprint_operation(self, object, stream, indent, allowance, context, level):
 
 
 pprint.PrettyPrinter._dispatch[SExpr.__repr__] = _pprint_operation
+
+Interpreter._namespace_classes = {c.namespace:c for c in Interpreter.__subclasses__()
+                                  if hasattr(c, 'namespace')}

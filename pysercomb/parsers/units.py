@@ -208,17 +208,17 @@ def make_unit_parser(units_path=None, dicts=None):
     for dict_ in dicts:
         gs.update(dict_)
 
-    _silookup = {k: "'" + v
+    _silookup = {k: ('quote', v)
                  for k, v in chain(units_si,
                                    units_extra,
                                    ([v, v] for k, v in units_si),
                                    ([v, v] for k, v in units_extra))}
-    _implookup = {k: "'" + v  # imperial separate because they don't support prefixes
+    _implookup = {k: ('quote', v)  # imperial separate because they don't support prefixes
                   for k, v in chain(units_imp,
                                     units_dimensionless,
                                     ([v, v] for k, v in units_imp),
                                     ([v, v] for k, v in units_dimensionless))}
-    _siplookup = {k: "'" + v for k, v in prefixes_si}
+    _siplookup = {k: ('quote', v) for k, v in prefixes_si}
 
     siprefix = OR(*make_funcs(coln(0, prefixes_si), _siplookup))
     siunit = OR(*make_funcs(chain(coln(0, units_si + units_extra), # need both here to avoid collisions in unit_atom slower but worth it?
@@ -312,7 +312,7 @@ def make_unit_parser(units_path=None, dicts=None):
     _prefix_quantity_num_only = JOINT(prefix_unit, COMPOSE(spaces, num))  # OR(JOINT(fold, num))
     prefix_quantity_num_only = BIND(_prefix_quantity, FLOP)
 
-    fold_suffix = RETVAL(END(by, noneof('0123456789')), BOX("'fold"))  # NOT(num) required to prevent issue with dimensions
+    fold_suffix = RETVAL(END(by, noneof('0123456789')), BOX(('quote', 'fold')))  # NOT(num) required to prevent issue with dimensions
     suffix_unit = unit #OR(unit_implicit_count_ratio, unit)
     suffix_unit_no_space = OR(param('unit')(OR(EXACTLY_ONE(fold_suffix), C_for_temp)), unit_starts_with_dash)  # FIXME this is really bad :/ and breaks dimensions...
     suffix_quantity = JOINT(num_expression,
@@ -336,7 +336,8 @@ def make_unit_parser(units_path=None, dicts=None):
                                                 AT_MOST_ONE(suffix_unit, fail=False))))
     quantity_num_only = param('quantity')(OR(prefix_quantity_num_only, suffix_quantity_num_only))
 
-    _hmsret = lambda v: param('quantity')(JOINT(RETURN(hms(*v)), param('unit')(RETURN(("'seconds",)))))
+    _hmsret = lambda v: param('quantity')(JOINT(RETURN(hms(*v)),
+                                                param('unit')(RETURN((('quote', 'seconds'),)))))
     duration_hms = BIND(JOINT(SKIP(int_, colon), SKIP(int_, colon), int_, join=False), _hmsret)
     dilution_factor = param('dilution')(JOINT(SKIP(int_, colon), int_, join=False))
     sq = COMPOSE(spaces, quantity)
