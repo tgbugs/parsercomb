@@ -13,8 +13,10 @@ open_paren = LEXEME(COMP('('))
 close_paren = LEXEME(COMP(')'))
 quote_symbol = COMP("'")
 double_quote_symbol = COMP('"')
+_string_escape = RETVAL(COMP('\\"'), '"')
 _string = COMPOSE(double_quote_symbol,
-                  SKIP(MANY(NOT(double_quote_symbol)),
+                  SKIP(MANY(OR(_string_escape, NOT(double_quote_symbol))),
+                       # string escape has to go first so the \ arent eaten
                        double_quote_symbol))  # TODO escape
 string = LEXEME(joinstr(_string))
 symbol = OR(char, digit, COMP('-'), COMP('_'), colon, COMP('*'),
@@ -29,7 +31,7 @@ symbol = OR(char, digit, COMP('-'), COMP('_'), colon, COMP('*'),
 empty_list = RETVAL(COMP("'()"), None)
 true = RETVAL(COMP("#t"), True)
 false = RETVAL(COMP("#f"), False)
-num_literal = OR(scientific_notation, float_, int_)
+num_literal = END(OR(scientific_notation, float_, int_), NOT(symbol))  # FIXME HACK
 cons_pair = COMPOSE(open_paren, JOINT(SKIP(exp, point), SKIP(exp, close_paren)))
 literal = OR(num_literal, string, true, false, empty_list)
 atom = joinstr(MANY1(symbol))  # not quite right due to numbers
@@ -38,7 +40,7 @@ identifier = LEXEME(atom)
 # Include the explicit quote since we transform everything into strings
 # since python has no symbols. Eval rules should not be applied here.
 # They should be applied later in a second step to obtain the python ir.
-quote = LEXEME(BIND(COMPOSE(quote_symbol, OR(exp)), lambda v: RETURN(('quote', v))))
+quote = LEXEME(BIND(COMPOSE(quote_symbol, exp), lambda v: RETURN(('quote', v))))
 def sexp(p):
     return sexp_inner(p)
 # It is consisten with racket behavior for unquoted cons pairs e.g. (1 . 2)

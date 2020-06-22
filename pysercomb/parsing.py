@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.6
 
 import os
+from .utils import log
 
 infinity = 99999  # you know it baby, if we go this deep we will get recursion errors
 __script_folder__ = os.path.dirname(os.path.realpath(__file__))
@@ -103,7 +104,7 @@ def TIMES(func, min_, max_=None, fail=True):
                 try:
                     success, v, rest = func(p)
                 except EOFError:  # NOT(anything) matches EOF
-                    print('caught EOF in TIMES', True, matches, p)
+                    log.debug(('caught EOF in TIMES', True, matches, p))
                     return True, tuple(matches), p
                 if not success:
                     return True, tuple(matches), p
@@ -193,12 +194,13 @@ def NOT(func):
                 return True, p[0], p[1:]
             else:
                 raise EOFError(f'Unhandled EOF received by NOT in {func} {func.__name__}.\n'
-                                  'You may have a MANY->NOT case.')
-                print('WAT')
+                               'You may have a MANY->NOT case.')
+                log.debug('WAT')
                 return True, None, p
     return not_
 
 def END(func1, func2):
+    """ this is a form of lookahead """
     def end_(p):
         success, v, rest = func1(p)
         if not success:

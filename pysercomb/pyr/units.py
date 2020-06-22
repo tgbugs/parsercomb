@@ -775,6 +775,7 @@ class MacroDecorator:
     def __call__(self, function):
         if function.__name__ not in self.macros:
             self.macros += function.__name__,
+            function._is_macro = True  # more efficient to lookup this way
         else:
             raise ValueError(f'Duplicate function name {function.__name__}')
 
@@ -797,7 +798,7 @@ class Interpreter:
     class _config:  # FIXME ... bad way to do this
         data_failure_mode = mode.FAIL
         parser_failure_mode = mode.FAIL
-        
+
     _renames = {
         '+': 'plus',
         '-': 'minus',
@@ -807,6 +808,8 @@ class Interpreter:
         '<': 'less_than',
         '>': 'greater_than',
     }
+
+    _keyword_start = '#:'  # FIXME way too hardcoded here
 
     def __init__(self, environment=Environment()):
         self.environment = environment
@@ -838,7 +841,11 @@ class Interpreter:
             python_repr = self.eval(sexp)
         except exc.ParseFailure:
             # FIXME this wrapping the top level in an exception handler ... tisk tisk (hah)
-            raise exc.ParseFailure(sexp._input)
+            if hasattr(sexp, '_input'):
+                raise exc.ParseFailure(sexp._input)
+            else:
+                log.warning('sexp missing _input')
+                raise exc.ParseFailure(sexp)
 
         python_repr._sexp = sexp
         return python_repr
@@ -862,17 +869,50 @@ class Interpreter:
 
         first, *rest = tup
         namespace, pyfirst = self.lisp_to_python(first)
-        function_or_macro = getattr(namespace, pyfirst)
-        if pyfirst in self._macros:
+        try:
+            function_or_macro = getattr(namespace, pyfirst)
+        except AttributeError as e:
+            raise ValueError(tup) from e
+
+        if (hasattr(function_or_macro, '_is_macro') and function_or_macro._is_macro):
             return function_or_macro(*rest)
+        elif namespace.__class__ != self.__class__:
+            # this is so that e.g. division can be defined internal to some namespace an not exported i.e. not explicilty prefixed
+            # it is NOT a good way to do this at all but I think it works
+            # FIXME TODO need the need the stack of environments
+            return namespace.eval(expression)
 
         if isinstance(rest, list) or isinstance(rest, tuple):
-            value = [self.eval(r) for r in rest]
+            args = []
+            kwargs = {}
+            gen = (_ for _ in rest)
+            while True:
+                try:
+                    r = next(gen)
+                    if isinstance(r, str) and r.startswith(self._keyword_start):
+                        # and this is why you have an ast ... with a keyword aware reader
+                        key = r[2:]
+                        if key in kwargs:
+                            raise ValueError(f'keyword argument {r} supplied twice!')
 
-        return function_or_macro(*value)  # apply is * woo
+                        r = next(gen)
+                        kwargs[key] = self.eval(r)
+                    else:
+                        args.append(self.eval(r))
+
+                except StopIteration:
+                    break
+
+        try:
+            return function_or_macro(*args, **kwargs)  # apply is * woo
+        except TypeError as e:
+            raise ValueError(f'{args} {kwargs}') from e
 
     def quote(self, expression):
         return expression
+
+    def rest(self, expression):
+        return ('rest', expression)
 
 
 macro = MacroDecorator()
@@ -943,7 +983,7 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
 
     #@macro(True, False)  # TODO specify which values can be evaluated
     @macro
-    def quantity(self, value, unit):
+    def quantity(self, value, unit=None):
         """ FIXME this prefix_unit issue reveals that this should
             really be prefix-quantity so that it doesn't have to
             be a macro that looks for a prefix-unit """
@@ -1122,41 +1162,212 @@ class Protc(ImplFactoryHelper, Interpreter):
     _BlackBox = None
     _Input = None
     _InputInstance = None
+    _Output = None
     _Invariant = None
     _Parameter = None
     _Aspect = None
+    _ExecutorVerb = None
+    _Term = None
+    _FuzzyQuantity = None
 
     # NOTE namespaces aren't actuall real right now
 
-    def black_box(self, args):
+    def black_box(self, black_box_name, prov, *body):
+        return self._BlackBox(black_box_name, prov, *body)
+    def black_box_component(self, black_box_name, prov, *body):
         pass
-    def black_box_component(self, args):
-        pass
-    def input(self, black_box, prov, *rest):
+    def input(self, black_box, prov, *body):
         bb = self.eval(black_box)
-        return self._Input(black_box, prov)
+        return self._Input(black_box, prov, *body)
+    def input_instance(self, black_box, prov, *body):
+        if body:
+            log.warning('check to see if protc:input-instance'
+                        'is supposed to have a body ...\n'
+                        f'{body}')
+        return self._InputInstance(black_box, prov, *body)
+    def output(self, black_box, prov, *body):
+        return self._Output(black_box, prov, *body)
 
-    def output(self, args):
+    def symbolic_input(self, value, prov, *body):
         pass
-    def aspect(self, args):
+
+    def symbolic_output(self, value, prov, *body):
         pass
-    def parameter(self, args):
+
+    def aspect(self, aspect, prov, *body):
         pass
-    def invariant(self, args):
-        pass
+
+    #@macro
+    def parameter(self, quantity, *rest_prov):  # FIXME and here we see yet another bug in my original implementation
+        #""" macro so we can use the parameter parser """
+        # no, the namespaceing takes care of it automatically
+        #prov_value = self.eval(prov)
+        #return self._ParamParser(quantity)
+        *rest, prov = rest_prov
+        return self._Parameter(quantity, prov, rest)
+    def invariant(self, quantity, *rest_prov):  # FIXME and here we see yet another bug in my original implementation
+        *rest, prov = rest_prov
+        return self._Invariant(quantity, prov, rest)
     def implied_input(self, args):
         pass
     def implied_output(self, args):
         pass
-    def implied_aspect(self, args):
+    def implied_aspect(self, aspect, prov, *body):
         pass
     def measure(self, args):
         pass
     def result(self, args):
         pass
-
-    def term(self, args):
+    def executor_verb(self, verb, prov, *body):
+        return self._ExecutorVerb(verb, prov, *body)
+    def objective(self, value, prov):
         pass
+    def term(self, curie, label, original=None):
+        return self._Term(curie, label, original)
+
+    ## FIXME unnamespaced cases
+    #def approximately(self, quantity):
+        # FIXME
+        #return Approximately(quantity)
+    def fuzzy_quantity(self, fuzzy, aspect_string):  # FIXME another example of a bad impl which can't access the prov
+        # also FIXME this needs to be rewritten so that the aspect is on the outside
+        # I don't think we can fix this here
+        log.warning('FIXME reminder to fix fuzzy-quantity issues')
+        # TODO fuzzy -> controlled vocabulary
+        return self._FuzzyQuantity(fuzzy, self.aspect(aspect_string, None))
+
+
+setattr(Protc, 'parameter*', Protc.parameter)
+setattr(Protc, 'objective*', Protc.objective)
+
+
+class BlackBox:
+    def __init__(self, name, prov, *body):
+        self.name = name
+        self.prov = prov
+        self.body = body
+class Input:
+    def __init__(self, black_box, prov, *body):
+        self.black_box = black_box
+        self.prov = prov
+        self.body = body
+class InputInstance:
+    def __init__(self, black_box, prov, *body):
+        self.black_box = black_box
+        self.prov = prov
+        self.body = body
+class Output:
+    def __init__(self, black_box, prov, *body):
+        self.black_box = black_box
+        self.prov = prov
+        self.body = body
+class Invariant:
+    def __init__(self, quantity, prov, rest=tuple()):
+        self.quantity = quantity
+        self.prov = prov
+        self.rest = rest
+class Parameter:
+    def __init__(self, quantity, prov, rest=tuple()):
+        self.quantity = quantity
+        self.prov = prov
+        self.rest = rest
+class Aspect:
+    def __init__(self):
+        pass
+class ExecutorVerb:
+    def __init__(self, verb, prov, *body):
+        self.verb = verb
+        self.prov = prov
+        self.body = body
+
+class Term:
+    def __init__(self, curie, label, original):
+        self.curie = curie
+        self.label = label
+        self.original = original
+
+    def __hash__(self):  # FIXME probably wrong for evaled nodes ...
+        return hash((self.__class__, self.curie))
+
+    def __eq__(self, other):
+        # FIXME warn on label mismatch?
+        return (self.__class__ == other.__class__ and
+                self.curie == other.curie)
+
+
+class FuzzyQuantity:
+    def __init__(self, fuzzy, aspect):
+        self.fuzzy = fuzzy
+        self.aspect = aspect
+
+Protc.bindImpl(None,
+               BlackBox,
+               Input,
+               InputInstance,
+               Output,
+               Invariant,
+               Parameter,
+               Aspect,
+               ExecutorVerb,
+               Term,
+               FuzzyQuantity,
+               )
+
+class RacketParser(ImplFactoryHelper, SExpr):  # XXX TODO
+
+    ParseFailure = exc.ParseFailure
+
+    def __new__(cls, string_to_parse, sexp=None, rest_ok=True):
+        if sexp is None:  # needed for copy to work happily
+            success, sexp, rest = cls._racket_parser(string_to_parse)
+            if rest and not rest_ok:
+                raise ValueError(f'Failed to parse suffix {rest}')
+
+        self = super().__new__(cls, sexp)
+        self._input = string_to_parse
+        return self
+
+    def __call__(self, string_to_parse):
+        # FIXME, do we want this version ??
+        pass
+
+    def asPython(self):
+        raise NotImplementedError('TODO')
+        return self._ParamParser()(self)  # FIXME ... needs to be more flexible
+
+    def __getnewargs_ex__(self):
+        return (self._input,), {}
+
+    def __copy__(self):
+        cls = self.__class__
+        result = cls.__new__(cls, self._input, sexp=self)
+        result.__dict__.update(self.__dict__)
+        return result
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls, self._input, sexp=self)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, copy.deepcopy(v, memo))
+        return result
+
+
+
+macro = MacroDecorator()
+@macro.has_macros
+class Hyp(ImplFactoryHelper, Interpreter):
+    """ definitions for the protc: namespace """
+
+    namespace = 'hyp'
+
+    _HypothesisAnno = None
+
+    def hyp(self, id):
+        return self._HypothesisAnno(id)
+
+
+setattr(Hyp, '', Hyp.hyp)  # I knew it was coming, and the fact that it works is kind of amusing
 
 
 # default configuration interpreters

@@ -59,3 +59,49 @@ class TestForms(unittest.TestCase):
                        ('quote', (('a', 'b'),
                                   (tuple(), 0),
                                   ('c', 1))))))
+
+    def test_string_escape(self):
+        ok, value, rest = racket._string_escape(r'\"')
+        assert ok
+
+    def test_string_escape_full(self):
+        code = r'''"testing \"string\" escape"'''
+        res = racket.exp(code)
+        print(res)
+        _, v, _ = res
+        assert v == 'testing "string" escape'
+
+    def test_quote_has_number(self):
+        code = """'a4sdf"""
+        res = racket.exp(code)
+        print(res)
+        _, v, _ = res
+        assert v == ('quote', 'a4sdf')
+
+    def test_quote_start_number(self):
+        code = """'4asdf"""
+        res = racket.exp(code)
+        print(res)
+        _, v, _ = res
+        assert v == ('quote', '4asdf')
+
+    def test_number_literal_fail(self):
+        code = """4asdf"""
+        ok, v, rest = res = racket.literal(code)
+        print(res)
+        ok, v, _ = res
+        assert not ok
+
+    def test_number_literal_ends(self):
+        codes = [
+            """4(+ 1 2)""",
+            """4;lol""",
+            """4)""",
+            """4'hello""",
+            """4""",
+            '''4"there"'''
+        ]
+        for code in codes:
+            ok, v, rest = res = racket.literal(code)
+            print(res)
+            assert ok and v == 4 and (code == '4' or rest)

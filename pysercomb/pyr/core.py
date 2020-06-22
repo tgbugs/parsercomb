@@ -13,7 +13,7 @@ class ImplFactoryHelper:
     # FIXME NOTE
     # UnitsParser is a case where
     @classmethod
-    def bindImpl(cls, class_name, *classes):
+    def bindImpl(cls, class_name, *classes, **kwargs):
         """ returns a new interpreter bound to a particular implementation of
             Unit
 
@@ -22,6 +22,8 @@ class ImplFactoryHelper:
         if class_name is None:
             for cls_ in classes:
                 setattr(cls, '_' + cls_.__name__, cls_)
+            for name, some_callable in kwargs.items():
+                setattr(cls, '_' + name, some_callable)
 
         else:
             class_dict = {'_' + cls.__name__:cls for cls in classes}
