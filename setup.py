@@ -17,7 +17,7 @@ with open('README.md', 'rt') as f:
 
 rdf_require = ['rdflib>=5.0.0', 'pyontutils']
 units_require = ['protcur']
-tests_require = ['pytest', 'pytest-runner'] + rdf_require + units_require
+tests_require = ['pytest'] + rdf_require + units_require
 setup(name='pysercomb',
       version=__version__,
       description='parser combinator library and assorted parsers',
