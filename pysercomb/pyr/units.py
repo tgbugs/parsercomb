@@ -738,7 +738,7 @@ class Dimensions(Oper):
 
 
 class Approximately(Oper):
-    """ No numercial uncertainty give, but with facilities to operationalize it. """
+    """ No numercial uncertainty given, but with facilities to operationalize it. """
 
     def __init__(self, expr):
         self.expr = expr
@@ -752,6 +752,9 @@ class Approximately(Oper):
     def quantify(self, error, relative=False):
         """ provide concrete values for the approximateness of approximately """
         return self.expr.plus_or_minus(error, relative)
+
+    def json(self):
+        return str(self)  # FIXME not the best decision here
 
 
 class mode(Enum):
