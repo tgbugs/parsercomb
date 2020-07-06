@@ -10,6 +10,7 @@ import pint
 from pysercomb import exceptions as exc
 from pysercomb.utils import log, logd, express
 from pysercomb.types import TypeCaster, boolc, strc
+from pysercomb.parsers import racket
 from pysercomb.parsers.units import _plus_or_minus
 from .core import ImplFactoryHelper , UnitsHelper, Expr
 from . import types as intf
@@ -757,6 +758,10 @@ class Approximately(Oper):
         return str(self)  # FIXME not the best decision here
 
 
+class Quote(SExpr):
+    pass
+
+
 class mode(Enum):
     FAIL = 1
     WARN = 2
@@ -850,7 +855,12 @@ class Interpreter:
                 log.warning('sexp missing _input')
                 raise exc.ParseFailure(sexp)
 
-        python_repr._sexp = sexp
+        try:
+            python_repr._sexp = sexp
+        except AttributeError:
+            # if we eval to a python literal they cannot accept the _sexp
+            pass
+
         return python_repr
 
     def pretty_print(self, expression):
@@ -911,8 +921,18 @@ class Interpreter:
         except TypeError as e:
             raise ValueError(f'{args} {kwargs}') from e
 
+    @macro  #duh
     def quote(self, expression):
-        return expression
+        if isinstance(expression, tuple):
+            return Quote(('quote', expression))  # TODO improve the quote class a bit probably ...
+
+        # self evaluating expressions ?
+        # string vs symbol not resolved here?
+        out = self.eval(expression)
+        if out != expression:  # hilariously expensive check right here
+            raise ValueError('something went wrong {expression} != {out}')
+
+        return out
 
     def rest(self, expression):
         return ('rest', expression)
@@ -1318,11 +1338,13 @@ Protc.bindImpl(None,
 
 class RacketParser(ImplFactoryHelper, SExpr):  # XXX TODO
 
+    _Protc = None
+
     ParseFailure = exc.ParseFailure
 
     def __new__(cls, string_to_parse, sexp=None, rest_ok=True):
         if sexp is None:  # needed for copy to work happily
-            success, sexp, rest = cls._racket_parser(string_to_parse)
+            success, sexp, rest = racket.exp(string_to_parse)
             if rest and not rest_ok:
                 raise ValueError(f'Failed to parse suffix {rest}')
 
@@ -1335,8 +1357,7 @@ class RacketParser(ImplFactoryHelper, SExpr):  # XXX TODO
         pass
 
     def asPython(self):
-        raise NotImplementedError('TODO')
-        return self._ParamParser()(self)  # FIXME ... needs to be more flexible
+        return self._Protc()(self)  # FIXME ... needs to be more flexible
 
     def __getnewargs_ex__(self):
         return (self._input,), {}
@@ -1356,6 +1377,8 @@ class RacketParser(ImplFactoryHelper, SExpr):  # XXX TODO
         return result
 
 
+RacketParser.bindImpl(None, Protc)
+
 
 macro = MacroDecorator()
 @macro.has_macros
@@ -1364,7 +1387,7 @@ class Hyp(ImplFactoryHelper, Interpreter):
 
     namespace = 'hyp'
 
-    _HypothesisAnno = None
+    _HypothesisAnno = staticmethod(lambda a: a)  # hack for simple defaults
 
     def hyp(self, id):
         return self._HypothesisAnno(id)
@@ -1375,7 +1398,7 @@ setattr(Hyp, '', Hyp.hyp)  # I knew it was coming, and the fact that it works is
 
 # default configuration interpreters
 # override these after import if there are custom formats that you want export to
-UnitsHelper.setup()
+UnitsHelper.setup()  # FIXME XXX this is really expensive to call ...
 ParamParser.bindImpl(None,
                      Unit,
                      PrefixUnit,

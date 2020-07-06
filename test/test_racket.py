@@ -1,6 +1,7 @@
 import unittest
 from pysercomb.parsers import racket
 from pysercomb.parsing import float_, int_, scientific_notation
+from pysercomb.pyr import units as pyru
 
 
 class TestForms(unittest.TestCase):
@@ -71,6 +72,13 @@ class TestForms(unittest.TestCase):
         _, v, _ = res
         assert v == 'testing "string" escape'
 
+    def test_quote_sexp(self):
+        code = """'(TEAPOTS ON THE OH NO)"""
+        res = racket.exp(code)
+        print(res)
+        _, v, _ = res
+        assert v == ('quote', ('TEAPOTS', 'ON', 'THE', 'OH', 'NO'))
+
     def test_quote_has_number(self):
         code = """'a4sdf"""
         res = racket.exp(code)
@@ -105,3 +113,31 @@ class TestForms(unittest.TestCase):
             ok, v, rest = res = racket.literal(code)
             print(res)
             assert ok and v == 4 and (code == '4' or rest)
+
+
+class TestPyrRacket(unittest.TestCase):
+
+    def test_quote_sexp(self):
+        hrm = pyru.RacketParser("'(i am a teapot short and stout)")
+        ap = hrm.asPython()
+
+    def test_quote_str(self):
+        hrm = pyru.RacketParser(""" '"i am redundant" """)
+        ap = hrm.asPython()
+
+    def test_add(self):
+        hrm = pyru.RacketParser('(+ 1 2)')
+        ap = hrm.asPython()
+
+    def test_complex(self):
+        test = """
+(protc:executor-verb "diluted" (hyp: 'ycN7aDCqEemsREea4BwMxg)  ; https://hyp.is/ycN7aDCqEemsREea4BwMxg
+  (protc:input "blocking buffer" (hyp: 'L9TvjkRTEem4q5dY1oVi-w))  ; https://hyp.is/L9TvjkRTEem4q5dY1oVi-w
+  (protc:input "goat anti-VR1" (hyp: 'D91m9ippEemlRi84HUXyKw)  ; https://hyp.is/D91m9ippEemlRi84HUXyKw
+    (protc:implied-aspect "dilution" (hyp: 'uN3DpiP6Eemt8lPtBr6wUg)  ; https://hyp.is/7nDe9iDOEem6X6NI4c_F3A
+      (protc:invariant (param:dilution 1 150) (hyp: '7nDe9iDOEem6X6NI4c_F3A))))  ; https://hyp.is/7nDe9iDOEem6X6NI4c_F3A
+  (protc:invariant (protc:fuzzy-quantity "overnight" "duration")
+                    (hyp: 'B9_WniDPEemNW__FACccsA))  ; https://hyp.is/B9_WniDPEemNW__FACccsA
+  (protc:parameter* (param:quantity 4 (param:unit 'degrees-celsius)) (hyp: 'DOeIYiDPEem7zPuTeuEhyA)))  ; https://hyp.is/DOeIYiDPEem7zPuTeuEhyA"""
+        hrm = pyru.RacketParser(test)
+        ap = hrm.asPython()
