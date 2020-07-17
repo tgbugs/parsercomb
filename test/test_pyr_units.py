@@ -1,10 +1,11 @@
 import pickle
 import pprint
 import unittest
+from decimal import Decimal
 import rdflib
 from pysercomb import exceptions as exc
 from pysercomb.parsers.units import DEGREES_FEAR
-from pysercomb.pyr.units import ParamParser, SExpr, Expr, UnitsParser, _Quant
+from pysercomb.pyr.units import ParamParser, SExpr, Expr
 from pysercomb.pyr import units as pyru
 from .common import *
 
@@ -87,18 +88,160 @@ class TestParam(unittest.TestCase):
                                            for text, new_text, pa, pb in bads])
 
 
-class TestUnitsParser:
+class TestUnitsParser(unittest.TestCase):
+
     def test_simple(self):
-        ten_mega_liters = UnitsParser('10ML')
+        ten_mega_liters = pyru.UnitsParser('10ML')
         assert isinstance(ten_mega_liters, SExpr)
         ap = ten_mega_liters.asPython()
-        assert ap == _Quant(10, 'ML')
+        assert ap == pyru.ur.Quantity(10, 'ML')
 
 
-class TestQuantity:
-    def _test_add(self):
-        q2 = Quantity(1) + Quantity(2)
-        assert q2 == Quantity(3)
+class TestQuantity(unittest.TestCase):
+
+    def test_add(self):
+        q2 = pyru.ur.Quantity(1) + pyru.ur.Quantity(2)
+        assert q2 == pyru.ur.Quantity(3)
+
+
+class TestComparison(unittest.TestCase):
+    q1 = pyru.ur.Quantity(1)
+    Q2 = pyru.ur.Quantity(2)
+    a1 = pyru.Approximately(q1)
+    A2 = pyru.Approximately(Q2)
+    f1 = pyru.ur.Quantity(1.1)
+    F2 = pyru.ur.Quantity(1.2)
+    d1 = pyru.ur.Quantity(Decimal(1.1))
+    D2 = pyru.ur.Quantity(Decimal(1.2))
+    t1 = q1
+    T2 = Q2
+    def test_eq(self):
+        assert self.t1 == self.t1
+        assert self.T2 == self.T2
+
+    def test_gt(self):
+        assert     self.T2 > self.t1
+        assert not self.t1 > self.T2
+
+    def test_ge(self):
+        assert     self.t1 >= self.t1
+        assert     self.T2 >= self.t1
+        assert not self.t1 >= self.T2
+
+    def test_lt(self):
+        assert     self.t1 < self.T2
+        assert not self.T2 < self.t1
+
+    def test_le(self):
+        assert     self.T2 <= self.T2
+        assert     self.t1 <= self.T2
+        assert not self.T2 <= self.t1
+
+
+class TestF(TestComparison):
+    t1 = TestComparison.f1
+    T2 = TestComparison.F2
+
+
+class TestD(TestComparison):
+    t1 = TestComparison.d1
+    T2 = TestComparison.D2
+
+
+class TestComparisonUnits(TestComparison):
+    q1 = pyru.ur.Quantity(1, 'mm')
+    Q2 = pyru.ur.Quantity(2, 'mm')
+    a1 = pyru.Approximately(q1)
+    A2 = pyru.Approximately(Q2)
+
+
+class TestApproximateComparison(TestComparison):
+    t1 = TestComparison.a1
+    T2 = TestComparison.A2
+
+    def test_a(self):
+        # approx are always lt AND gt when a1.q == q1
+        assert     self.a1 < self.q1
+        assert     self.a1 > self.q1
+        assert     self.a1 != self.q1
+        assert not self.a1 == self.q1
+
+        # the only thing we know for sure is that they
+        # are NOT equal which implies that we are modelling
+        # approximately as an unknown probability distribution fuction
+        # where P(X == x) = 0 ∀ x ∈ ℝ Rn ... the problem with unicode
+        # is that you literally can't search for the darned things
+        # thus latex ..
+
+        # however, in cases where a1.q != Q
+        # then the equality operators hold
+        # for the following reason, we define
+        # a1 < A2 ∀ a1, a2 where a1.q < A2.q
+        # thus we must resolve the following
+        # a1    ==    a1 < A2    ==    A2
+        # a1 < a1.q < a1 < A2 < A2.q < A2
+        #      a1.q      <      A2.q
+
+        # all happy cases
+        # a1   < a1.q < A2   < A2.q
+        # a1.q < a1   < A2   < A2.q
+        # a1   < a1.q < A2.q < A2
+        # a1.q < a1   < A2.q < A2
+
+        # when introducing the actual values (r)
+        # we see how even assuming
+        # a1 < A2 and a1.q < A2.q
+        # can result in weirdness
+        #        a1.r1 < A2.r1 < a1.q
+        # A2.q < a1.r2 < A2.r2
+        # further, a1.r and A2.r really have no specifed relation
+        # A2.r < a1.r < a1.q < A2.q
+        #               a1.q < A2.q < A2.r < a1.r
+        # so the question is whether we treat the quantites as
+        # the known parameters, or as the unknown actual values
+        # for sake of sanity and sorting _for the visual representation_
+        # we use the quantities and we lift the quantities to their
+        # approximate form if they have to be compared with an
+        # approximate value
+
+        # this would seem to make intuitive sense given that
+        # "approximately 20 oranges is less than approximate 22 oranges"
+        # is going to be true more often than it is not
+        # assuming that the approximating process is more or less the same
+        # similarly "approximately 20 organges is less than 22 oranges"
+        # is going to be a true statement more often than not as well
+        # however the second statement might end up being true less frequently
+        # than in the prior case because there is no opportunity for 22 oranges
+        # to actually be 25 oranges when approx 20 oranges is actually 23 oranges
+        # quiet the mess
+
+        assert     self.a1 < self.Q2
+        assert not self.a1 > self.Q2
+        assert not self.a1 >= self.Q2
+
+        assert     self.Q2 > self.a1
+        assert not self.Q2 < self.a1
+        assert not self.Q2 <= self.a1
+
+
+class TestACF(unittest.TestCase):
+    a1 = pyru.Approximately(TestComparison.f1)
+    A2 = pyru.Approximately(TestComparison.F2)
+    q1 = TestComparison.f1
+    Q2 = TestComparison.F2
+    test_a = TestApproximateComparison.test_a
+
+
+class TestACD(unittest.TestCase):
+    a1 = TestACF.a1
+    A2 = TestACF.A2
+    q1 = TestComparison.d1
+    Q2 = TestComparison.D2
+    test_a = TestApproximateComparison.test_a
+
+
+class TestApproximateComparisonUnits(TestComparisonUnits):
+    test_a = pytest.mark.xfail(TestApproximateComparison.test_a)  # FIXME
 
 
 class TestUnits(unittest.TestCase):

@@ -125,3 +125,41 @@ class Expr(intf.ProtcurExpression, UnitsHelper, ImplFactoryHelper):
         OntCuries.populate(graph)
         [graph.add(t) for t in self.asRdf()]
         return graph.serialize(format='nifttl')
+
+
+# comparison classes
+
+class _Than:
+    op = None
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+
+
+    def __call__(self, other):
+        if self.left is None:
+            return getattr(other, self._op)(self)
+
+    def __str__(self):
+        left = f'{self.left} ' if self.left else ''
+        return f'{left}{self.op} {self.right}'
+
+
+class ltclass(type):
+    _op = '__lt__'
+    def __lt__(self, other):
+        return self(None, other)
+
+
+class gtclass(type):
+    _op = '__gt__'
+    def __gt__(self, other):
+        return self(None, other)
+
+
+class LessThan(_Than, metaclass=ltclass):
+    op = '<'
+
+
+class GreaterThan(_Than, metaclass=gtclass):
+    op = '>'

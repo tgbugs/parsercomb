@@ -2,8 +2,10 @@ hour = min * 60 = h = [time] # override plank length default
 # pH = log10_concentration_Hplus = log [concentration]
 pH = log10_concentration_Hplus
 postnatal_day = day = P = days_since_birth = [time]
-fold = x = []  # FIXME not a multiplicative unit ...
-numerical_aperture = NA = []
+fold = [] = x
+# FIXME fold is not a multiplicative unit
+# it is more a multiplcative closure over magnitude (λ (v) (* v magnitude))
+numerical_aperture = [] = NA
 bel = []
 degrees_celsius = degC = degrees-celsius
 percent = 0.01 * count = %

@@ -6,13 +6,15 @@ import itertools
 from enum import Enum
 from urllib.parse import quote
 from pathlib import Path
+from numbers import Number
 import pint
 from pysercomb import exceptions as exc
 from pysercomb.utils import log, logd, express
 from pysercomb.types import TypeCaster, boolc, strc
 from pysercomb.parsers import racket
 from pysercomb.parsers.units import _plus_or_minus
-from .core import ImplFactoryHelper , UnitsHelper, Expr
+from .core import ImplFactoryHelper, UnitsHelper, Expr
+from .core import GreaterThan, LessThan
 from . import types as intf
 
 try:
@@ -229,6 +231,9 @@ class LoR(Oper):
 
         self.left = left
         self.right = right
+
+    def __hash__(self):
+        return hash((self.__class__, self.left, self.right))
 
     def __eq__(self, other):
         return (self.__class__ == other.__class__ and
@@ -577,45 +582,33 @@ class __PrefixQuantity(__Quantity):
         return f'{unit}{self.value}'
 
 
-class _Than:
-    op = None
-    def __init__(self, left, right):
-        self.left = left
-        self.right = right
-
-
-    def __call__(self, other):
-        if self.left is None:
-            return getattr(other, self._op)(self)
-
-    def __str__(self):
-        left = f'{self.left} ' if self.left else ''
-        return f'{left}{self.op} {self.right}'
-
-
-class ltclass(type):
-    _op = '__lt__'
-    def __lt__(self, other):
-        return self(None, other)
-
-
-class gtclass(type):
-    _op = '__gt__'
-    def __gt__(self, other):
-        return self(None, other)
-
-
-class LessThan(_Than, metaclass=ltclass):
-    op = '<'
-
-
-class GreaterThan(_Than, metaclass=gtclass):
-    op = '>'
-
-
 class Range(intf.Range, Oper):
     """ This is a non-homogenous range, units may differ """
     op = '-'
+
+    def to_base_units(self):
+        return self.__class__(
+            *(_.to_base_units() for _ in (self.left, self.right)))
+
+    @property
+    def dimensionality(self):
+        ld = self.left.dimensionality
+        rd = self.right.dimensionality
+        if ld != rd:  # FIXME should catch during construction ya?
+            raise TypeError('Range dimensionality mismatch! {ld} != {rd}')
+
+        return ld
+
+    @property
+    def units(self):
+        if self.left.units == self.right.units:
+            return self.left.units
+        else:
+            msg = ('The current range uses non-homogenous range units '
+                   'use to_base_units first and then you can get units. '
+                   'Alternately, depending on your use case you could use '
+                   'dimensionality.')
+            raise NotImplementedError(msg)
 
     def __init__(self, left, right):
         self.left = left
@@ -625,10 +618,34 @@ class Range(intf.Range, Oper):
         # provided, but for now is just going to be a dumb
         # container
 
+    def __hash__(self):
+        return hash((self.__class__,
+                     self.left,
+                     self.right,))
+
     def __eq__(self, other):
         return (self.__class__ == other.__class__ and
                 self.left == other.left and
                 self.right == other.right)
+
+    def __gt__(self, other):
+        if type(self) == type(other):
+            return not self < other
+        else:
+            return True  # range always wants to be highest
+
+    def __ge__(self, other):
+        return self > other or self == other
+
+    def __lt__(self, other):
+        if type(self) == type(other):
+            return ((self.left - self.right) ** 2 <
+                    (other.left - other.right) ** 2)
+        else:
+            return False
+
+    def __le__(self, other):
+        return self < other or self == other
 
     def __mul__(self, other):
         # FIXME rmul on units?
@@ -721,6 +738,14 @@ class PlusOrMinus(Range):
 
 class Dilution(LoR):
     op = ':'
+    dimensionality = pint.util.UnitsContainer({'[]': 1.0})
+
+    def __gt__(self, other):
+        # a larger dilution is a smaller fraction (confusingly)
+        if type(self) == type(other):
+            return self.right / self.left > other.right / other.left
+        else:
+            return True
 
 
 class Dimensions(Oper):
@@ -741,6 +766,11 @@ class Dimensions(Oper):
 class Approximately(Oper):
     """ No numercial uncertainty given, but with facilities to operationalize it. """
 
+    @property
+    def dimensionality(self):
+        # FIXME this will come back to bite us I suspect
+        return self.expr.dimensionality
+
     def __init__(self, expr):
         self.expr = expr
 
@@ -756,6 +786,42 @@ class Approximately(Oper):
 
     def json(self):
         return str(self)  # FIXME not the best decision here
+
+    def __hash__(self):
+        return hash((self.__class__, self.expr))
+
+    def __eq__(self, other):
+        # only approximate values can be equal to eachother
+        # any additional quantification of uncertainty
+        # they should probably be ranked by their
+        # level of uncertainty
+        return (type(self) == type(other) and
+                self.expr == other.expr)
+
+    def __gt__(self, other):
+        return (self.expr > other.expr
+                if type(self) == type(other) else
+                (self.expr >= other  # equality -> gt, see tests for notes
+                 if type(self.expr) == type(other) or isinstance(other, Number)
+                 else True))
+        # NOTE approximate values are always worst case
+        # in the case of equality, when you want to know
+        # if they are greater, they are, when you want
+        # to know if they are less than, they are
+
+    def __ge__(self, other):
+        return self > other or self == other
+
+    def __lt__(self, other):
+        return (self.expr < other.expr
+                if type(self) == type(other) else
+                (self.expr <= other  # equality -> le, see tests for notes
+                 if type(self.expr) == type(other) or isinstance(other, Number)
+                 # need to test against Number for compat with pint Quantity
+                 else True))
+
+    def __le__(self, other):
+        return self < other or self == other
 
 
 class Quote(SExpr):
@@ -1011,6 +1077,8 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
             really be prefix-quantity so that it doesn't have to
             be a macro that looks for a prefix-unit """
 
+        # FIXME range masquerading as a quantity
+
         value = self.eval(value)
         value = value if value else 1  # multiplication by 1 for units if the unit is None we get zero?
         unit_value = self.eval(unit)
@@ -1117,6 +1185,9 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
             different units, and the answer is 'here' for range
             and for dimensions, this is true even if we are handed
             prefix quantities """
+        # FIXME TODO a range of quantities or a quantity of ranges?
+        # it is easier to write the range once if the units are
+        # homogenous, if they are not then it is a range of quantities
         left, right = self._merge_dims(left, right)
 
         return self._Range(left, right)
@@ -1217,8 +1288,8 @@ class Protc(ImplFactoryHelper, Interpreter):
     def symbolic_output(self, value, prov, *body):
         pass
 
-    def aspect(self, aspect, prov, *body):
-        pass
+    def aspect(self, name, prov, *body):
+        return self._Aspect(name, prov, *body)
 
     #@macro
     def parameter(self, quantity, *rest_prov):  # FIXME and here we see yet another bug in my original implementation
@@ -1227,10 +1298,10 @@ class Protc(ImplFactoryHelper, Interpreter):
         #prov_value = self.eval(prov)
         #return self._ParamParser(quantity)
         *rest, prov = rest_prov
-        return self._Parameter(quantity, prov, rest)
+        return self._Parameter(quantity, prov, tuple(rest))
     def invariant(self, quantity, *rest_prov):  # FIXME and here we see yet another bug in my original implementation
         *rest, prov = rest_prov
-        return self._Invariant(quantity, prov, rest)
+        return self._Invariant(quantity, prov, tuple(rest))
     def implied_input(self, args):
         pass
     def implied_output(self, args):
@@ -1284,19 +1355,95 @@ class Output:
         self.black_box = black_box
         self.prov = prov
         self.body = body
+
+
 class Invariant:
     def __init__(self, quantity, prov, rest=tuple()):
         self.quantity = quantity
         self.prov = prov
         self.rest = rest
+
+    def __hash__(self):
+        try:
+            return hash((self.__class__,
+                        self.quantity,
+                        self.prov,
+                        self.rest,))
+        except Exception as e:
+            breakpoint()
+            'asdf'
+
+    def __eq__(self, other):
+        # XXX for sorting only, remember, these are more the python
+        # representation of the ast than of the values themselves
+        # so actual comparison should be on the value in the node
+        return hash(self) == hash(other)
+
+    def __lt__(self, other):
+        return not ((self > other) or self == other)
+
+    def __gt__(self, other):
+        if type(self) != type(other):
+            return False
+
+        qds = self.quantity.dimensionality
+        qdo = other.quantity.dimensionality
+        if qds == qdo:
+            try:
+                return self.quantity > other.quantity
+            except ValueError:
+                # FIXME ... hack to work around the fact
+                # that pint quantities don't know what
+                # to do with approximate values, but
+                # approximate values do know what to do
+                # about pint quantities, the only issue
+                # is that approximate values are weird
+                # so you can't negate their results or
+                # else you will get the wrong answer
+                # try that one out on a type system ...
+                # a boolean type that cannot be negated
+                # within a specific scope
+                #breakpoint()
+                return other.quantity <= self.quantity
+        else:
+            return tuple(qds.items()) > tuple((qdo.items()))
+
+
 class Parameter:
+    __hash__ = Invariant.__hash__
+    __eq__ = Invariant.__eq__
+    __lt__ = Invariant.__lt__
+    __gt__ = Invariant.__gt__
     def __init__(self, quantity, prov, rest=tuple()):
+        # NOTE quantity here implies that it implements
+        # the quantity interface (though python doesn't formalize that notion)
+        # so things like range also count here
         self.quantity = quantity
         self.prov = prov
         self.rest = rest
+
+
 class Aspect:
-    def __init__(self):
-        pass
+
+    @property
+    def dimensionality(self):
+        key = f'[{self.name}]'
+        if key not in ur._dimensions:
+            raise NotImplementedError(f'unknown dimension {key}')
+
+        dim = ur._dimensions[key]
+        if not dim.is_base:
+            # useful for things like duration
+            return dim.reference
+
+        return pint.util.UnitsContainer({key: 1.0})
+
+    def __init__(self, name, prov, *body):
+        self.name = name
+        self.prov = prov
+        self.body = body
+
+
 class ExecutorVerb:
     def __init__(self, verb, prov, *body):
         self.verb = verb
@@ -1304,6 +1451,7 @@ class ExecutorVerb:
         self.body = body
 
 class Term:
+
     def __init__(self, curie, label, original):
         self.curie = curie
         self.label = label
@@ -1319,9 +1467,35 @@ class Term:
 
 
 class FuzzyQuantity:
+
+    @property
+    def dimensionality(self):
+        return self.aspect.dimensionality
+
     def __init__(self, fuzzy, aspect):
         self.fuzzy = fuzzy
         self.aspect = aspect
+
+    def __hash__(self):
+        return hash((self.__class__,
+                        self.fuzzy,
+                        self.aspect,))
+
+    def __eq__(self, other):
+        # XXX for sorting only, remember, these are more the python
+        # representation of the ast than of the values themselves
+        # so actual comparison should be on the value in the node
+        return hash(self) == hash(other)
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __gt__(self, other):  # TODO review
+        return self != other
+
+    def __lt__(self, other):  # TODO review
+        return self != other
+
 
 Protc.bindImpl(None,
                BlackBox,
