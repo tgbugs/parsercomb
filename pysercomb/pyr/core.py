@@ -131,6 +131,38 @@ class Expr(intf.ProtcurExpression, UnitsHelper, ImplFactoryHelper):
 
 class _Than:
     op = None
+
+    def to_base_units(self):
+        return self.__class__(
+            *(_ if _ is None else _.to_base_units() for _ in (self.left, self.right)))
+
+    @property
+    def dimensionality(self):
+        ld, rd = None, None
+        if self.left is not None:
+            ld = self.left.dimensionality
+
+        if self.right is not None:
+            rd = self.right.dimensionality
+
+        if ld and rd and ld != rd:  # FIXME should catch during construction ya?
+            raise TypeError('Range dimensionality mismatch! {ld} != {rd}')
+
+        return rd if ld is None else ld
+
+    def __hash__(self):
+        return hash((self.__class__, self.left, self.right))
+
+    def __eq__(self, other):
+        # FIXME WARNING assuming that right is always what we wind up with
+        return type(self) == type(other) and self.right == other.right
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __ge__(self, other):
+        return self > other or self == other
+
     def __init__(self, left, right):
         self.left = left
         self.right = right
@@ -160,6 +192,41 @@ class gtclass(type):
 class LessThan(_Than, metaclass=ltclass):
     op = '<'
 
+    def __lt__(self, other):
+        if type(self) == type(other):
+            return self.right < other.right
+        else:
+            # NOTE a bit strange, but
+            # < 18 hours can be < 20 minutes
+            # of course one might say that on
+            # average it is most certainly
+            # greater than 20 minutes, but
+            # we weren't given a lower bound
+            return True
+
+    def __gt__(self, other):
+        if type(self) == type(other):
+            return self.right > other.right
+        else:
+            # less thans can never be greater than something else
+            # because in theory their value can always be less than
+            # any obtained value ... now, in reality most of the time
+            # that people use < 18 hours, they are implying that there
+            # is a lower bound of zero hours
+            return False
+
 
 class GreaterThan(_Than, metaclass=gtclass):
     op = '>'
+
+    def __lt__(self, other):
+        if type(self) == type(other):
+            return self.right < other.right
+        else:
+            return False
+
+    def __gt__(self, other):
+        if type(self) == type(other):
+            return self.right > other.right
+        else:
+            return True

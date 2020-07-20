@@ -224,33 +224,6 @@ class TestNumExpr(unittest.TestCase):
         _, out, _ = res
         assert out == -25, res
 
-
-class TestExpr(unittest.TestCase):
-    def test_mixed_expr(self):
-        tests = (
-            ('(1 + 2) * (3 + 4)', ()),
-            ('1 / mm^3', ()),
-            ('(1 + 2) mm', ()),
-            ('(3 + 4) mm^3', ()),
-            ('(0 + 0) / mm^3', ()),
-            ('(0 + (0 + 0))', ()),
-            ('1 / 2 + 3 - 4', ()),
-            ('1 / (2 + 3) - 4', ()),
-            ('(1 / (2 + 3) - 4)', ()),
-            ('(1 / (2 + 3) - 4) mm', ()),
-            ('(1 / (2 + 3) - 4) mm^3', ()),
-            ('(1 / (2 + 3) - 4) / mm^3', ()),
-        )
-        #qtest = [quantity(t) for t, e in tests]
-        #qbad = [r for r in qtest if r[-1]]
-        #assert not qbad, qbad
-        #entest = [expression(t) for t, e in tests]
-        #enbad = [r for r in entest if r[-1]]
-
-        pentest = [parameter_expression(t) for t, e in tests]
-        penbad = [r for r in pentest if r[-1]]
-        assert not penbad, '\n' + '\n'.join([f'{t}' for t in penbad])
-
     def test_num_expression(self):
         tests = (
             ('1', (True, 1, '')),
@@ -265,50 +238,6 @@ class TestExpr(unittest.TestCase):
         test = '(10 + 3) * 4'  # FIXME should be able to subsum all of this into a single expr
         _, out, _ = num_expression(test)
         assert out == ('param:expr', ('*', 4, ('+', 3, 10)))
-
-    def test_mixed_unit_op_order_simple(self):
-        test = '1 / mm^3'
-        _, out, _ = parameter_expression(test)
-        print(out)
-        assert out == ('param:quantity',
-                       1,
-                       ('param:unit-expr',
-                        ('/', ('param:unit', ('quote', 'count')),
-                         ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3))))
-
-    def test_mixed_unit_op_order(self):
-        test = '4.7 +- 0.6 x 10^7 / mm^3'
-        test = '(4.7 +- 0.6 x 10^7) / mm^3'
-        _, out, _ = parameter_expression(test)
-        print(out)
-        assert out == ('param:quantity',
-                       ('param:expr',
-                        ('*',  # FIXME mark as param:expr?
-                         ('plus-or-minus', 4.7, 0.6),
-                         ('^', 10, 7))),
-                       ('param:unit-expr',
-                        ('/', ('param:unit', ('quote', 'count')),
-                         ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3))))
-
-    def test_prefix_infix_expr(self):
-        text = '~1 - 3 mm'
-        out = prefix_expression(text)
-        test = (True,
-                (('approximately',
-                  ('param:quantity',
-                   ('param:expr', ('range', 1, 3)),
-                   ('param:unit', ('quote', 'meters'), ('quote', 'milli')))
-                   ),),
-                '')
-        assert out == test
-
-    def test_prefix_expr(self):
-        text = '>1'
-        out = prefix_expression(text)
-        test = (True,
-                (('>', ('param:quantity', 1, ())),),
-                '')
-        assert out == test
 
     def test_infix_expr_many(self):
         text = '1 * 3 * 2 * 4'
@@ -362,6 +291,86 @@ class TestExpr(unittest.TestCase):
                 ('param:expr', ('^', 3, 2),),
                 '')
         assert out == test
+
+
+class TestExpr(unittest.TestCase):
+    def test_mixed_expr(self):
+        tests = (
+            ('(1 + 2) * (3 + 4)', ()),
+            ('1 / mm^3', ()),
+            ('(1 + 2) mm', ()),
+            ('(3 + 4) mm^3', ()),
+            ('(0 + 0) / mm^3', ()),
+            ('(0 + (0 + 0))', ()),
+            ('1 / 2 + 3 - 4', ()),
+            ('1 / (2 + 3) - 4', ()),
+            ('(1 / (2 + 3) - 4)', ()),
+            ('(1 / (2 + 3) - 4) mm', ()),
+            ('(1 / (2 + 3) - 4) mm^3', ()),
+            ('(1 / (2 + 3) - 4) / mm^3', ()),
+        )
+        #qtest = [quantity(t) for t, e in tests]
+        #qbad = [r for r in qtest if r[-1]]
+        #assert not qbad, qbad
+        #entest = [expression(t) for t, e in tests]
+        #enbad = [r for r in entest if r[-1]]
+
+        pentest = [parameter_expression(t) for t, e in tests]
+        penbad = [r for r in pentest if r[-1]]
+        assert not penbad, '\n' + '\n'.join([f'{t}' for t in penbad])
+
+    def test_mixed_unit_op_order_simple(self):
+        test = '1 / mm^3'
+        _, out, _ = parameter_expression(test)
+        print(out)
+        assert out == ('param:quantity',
+                       1,
+                       ('param:unit-expr',
+                        ('/', ('param:unit', ('quote', 'count')),
+                         ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3))))
+
+    def test_mixed_unit_op_order(self):
+        test = '4.7 +- 0.6 x 10^7 / mm^3'
+        test = '(4.7 +- 0.6 x 10^7) / mm^3'
+        _, out, _ = parameter_expression(test)
+        print(out)
+        assert out == ('param:quantity',
+                       ('param:expr',
+                        ('*',  # FIXME mark as param:expr?
+                         ('plus-or-minus', 4.7, 0.6),
+                         ('^', 10, 7))),
+                       ('param:unit-expr',
+                        ('/', ('param:unit', ('quote', 'count')),
+                         ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3))))
+
+    def test_prefix_infix_expr(self):
+        text = '~1 - 3 mm'
+        out = prefix_expression(text)
+        test = (True,
+                (('approximately',
+                  ('param:quantity',
+                   ('param:expr', ('range', 1, 3)),
+                   ('param:unit', ('quote', 'meters'), ('quote', 'milli')))
+                   ),),
+                '')
+        assert out == test
+
+    def test_prefix_expr(self):
+        text = '>1'
+        out = prefix_expression(text)
+        test = (True,
+                (('>', ('param:quantity', 1, ())),),
+                '')
+        assert out == test
+
+    def test_float_scinote(self):
+        test = '0.000002 molarity'
+        out = parameter_expression(test)
+        assert out == (True,
+                       ('param:quantity',
+                        2e-06,
+                        ('param:unit', ('quote', 'molarity'))),
+                       '')
 
 
 class TestMain(unittest.TestCase):

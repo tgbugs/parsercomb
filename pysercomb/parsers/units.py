@@ -374,7 +374,10 @@ def make_unit_parser(units_path=None, dicts=None):
     #def approximate_thing(thing): return JOINT(EXACTLY_ONE(approx), COMPOSE(spaces, thing), join=False)
 
     def FAILURE(p):
-        return param('parse-failure')(lambda null: (True, tuple(), p))(p)
+        # NOTE we do not return (True, (p,), p) because FAILURE
+        # should only be used in the last slot, nothing should be
+        # parsing after this in the same chain
+        return param('parse-failure')(lambda null: (True, (p,), ''))(p)
 
     # TODO objective specifications...
     components = OR(dimensions,
@@ -431,7 +434,7 @@ def parse_for_tests(parameter_expression=None):
               '3*10^6 infectious particles/mL',
               '4.7 +- 0.6 x 10^7 / mm^3',  # FIXME this is ambigious? YES VERY also unit dimensionality...
               '1,850', '4C', 'three', 'Four', 'P28.5±2 days',
-              '12-V', '10-mL', '+1',
+              '12-V', '10-mL', '+1', 'Forty seconds'
              )
     should_fail = ('~~~~1',
                    "(pH 7.3",

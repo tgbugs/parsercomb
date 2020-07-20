@@ -2,6 +2,7 @@ import pickle
 import pprint
 import unittest
 from decimal import Decimal
+import pytest
 import rdflib
 from pysercomb import exceptions as exc
 from pysercomb.parsers.units import DEGREES_FEAR
@@ -240,8 +241,22 @@ class TestACD(unittest.TestCase):
     test_a = TestApproximateComparison.test_a
 
 
-class TestApproximateComparisonUnits(TestComparisonUnits):
-    test_a = pytest.mark.xfail(TestApproximateComparison.test_a)  # FIXME
+class TAHelper:
+    # pytest.mark actually marks functions, it doesn't just
+    # decorate the local version, so have to create an
+    # intermediate helper class that can hold the equality
+    # and then be subclassed so we can call super ... sigh
+    test_a = TestApproximateComparison.test_a
+
+
+class TestApproximateComparisonUnits(TestComparisonUnits, TAHelper):
+    # FIXME direct comparison with pint Quantity on the left has no
+    # mediating function that we can use to catch and invert the the operation
+    # so that approximately is on the left, this will need to be fixed
+    # at some point in the future
+    @pytest.mark.xfail
+    def test_a(self):  # FIXME
+        super().test_a()
 
 
 class TestUnits(unittest.TestCase):

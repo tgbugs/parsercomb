@@ -2,12 +2,15 @@
     You must call UnitHelper.setup() in the client code before you can use this. """
 import copy
 import pprint
+import operator
 import itertools
 from enum import Enum
 from urllib.parse import quote
 from pathlib import Path
 from numbers import Number
+from functools import reduce
 import pint
+from uncertainties.core import AffineScalarFunc
 from pysercomb import exceptions as exc
 from pysercomb.utils import log, logd, express
 from pysercomb.types import TypeCaster, boolc, strc
@@ -29,12 +32,60 @@ try:
 except ImportError:
     pass  # exception logged in rdftypes
 
+
 ur = pint.UnitRegistry()
 ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
 ur.default_system = 'mgs'  # SNAAAKKEEEEE system
 
 
+class __Monkey:
+
+    def __hash__(self):
+        """ monkey patch so that +/- can go in a dict """
+        return hash((self.__class__, self._nominal_value, self._linear_part))
+
+    def __eq__(self, other):
+        return (type(self) == type(other) and
+                self.value == other.value and
+                self.error == other.error)
+
+    def __lt__(self, other):
+        max_vs = self.value + self.error
+        if type(self) == type(other):
+            min_vo = other.value - other.error
+        else:
+            min_vo = other
+
+        # our max is less than their min
+        return max_vs < min_vo
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __gt__(self, other):
+        min_vs = self.value - self.error
+        if type(self) == type(other):
+            max_vo = other.value + other.error
+        else:
+            max_vo = other
+
+        # our min is greater than their max
+        return min_vs > max_vo
+
+    def __ge__(self, other):
+        return self < other or self == other
+
+
+AffineScalarFunc.__hash__ = __Monkey.__hash__
+ur.Measurement.__eq__ = __Monkey.__eq__
+ur.Measurement.__lt__ = __Monkey.__lt__
+ur.Measurement.__gt__ = __Monkey.__le__
+ur.Measurement.__le__ = __Monkey.__gt__
+ur.Measurement.__ge__ = __Monkey.__ge__
+
+
 class _Unit(intf.Unit, ur.Unit):
+
     def format_babel(self, spec='', **kwspec):
         spec = spec or self.default_format
 
@@ -163,7 +214,7 @@ class SExpr(tuple):
         return False
 
     @classmethod
-    def format_value(cls, sexp, localIndent=0, depth=0):
+    def format_value(cls, sexp, localIndent=0, depth=0, SPACE=' '):
         out = ''
         if sexp:
             if sexp[0] == 'quote':  # TODO other quasiquote etc.
@@ -181,18 +232,18 @@ class SExpr(tuple):
             indent_for_next_level = indent_for_this_loop
             for i, element in enumerate(sexp):
                 if newline and i > 1:
-                    out += '\n' + ' ' * indent_for_this_loop
+                    out += '\n' + SPACE * indent_for_this_loop
 
                 if isinstance(element, tuple):
                     element = cls.format_value(element, indent_for_next_level, depth + 1)
 
                 if element is not None:
                     strelement = str(element)
-                    if out and out[-1] != ' ':
+                    if out and out[-1] != SPACE:
                         out += ' ' + strelement
                         if i > 1 or not newline:
                             # unlike at the top strelement already has ( prepended if it exists
-                            indent_for_next_level += len(' ') + len(strelement)
+                            indent_for_next_level += len(SPACE) + len(strelement)
 
                     else:  # we are adding indents
                         out += strelement
@@ -750,6 +801,12 @@ class Dilution(LoR):
 
 class Dimensions(Oper):
     op = 'x'
+
+    @property
+    def dimensionality(self):
+        value = reduce(operator.mul, self.quants)
+        return value.dimensionality
+
     def __init__(self, *quants):
         self.quants = quants
 
@@ -911,15 +968,7 @@ class Interpreter:
         return namespace, name.replace('-', '_')
 
     def __call__(self, sexp):
-        try:
-            python_repr = self.eval(sexp)
-        except exc.ParseFailure:
-            # FIXME this wrapping the top level in an exception handler ... tisk tisk (hah)
-            if hasattr(sexp, '_input'):
-                raise exc.ParseFailure(sexp._input)
-            else:
-                log.warning('sexp missing _input')
-                raise exc.ParseFailure(sexp)
+        python_repr = self.eval(sexp)  # raises exc.ParseFailure
 
         try:
             python_repr._sexp = sexp
@@ -970,7 +1019,7 @@ class Interpreter:
                     r = next(gen)
                     if isinstance(r, str) and r.startswith(self._keyword_start):
                         # and this is why you have an ast ... with a keyword aware reader
-                        key = r[2:]
+                        key = r[2:].replace('-', '_')  # FIXME lisp ids can get quite fancy
                         if key in kwargs:
                             raise ValueError(f'keyword argument {r} supplied twice!')
 
@@ -1019,8 +1068,13 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
     _Dilution = None
     _Dimensions = None
 
-    def parse_failure(self, *args):
-        e = exc.ParseFailure
+    def parse_failure(self, *args, node_type=None, failed_input=None, prov=None):
+        if prov:
+            # prov in this case just is the protc node
+            e = exc.ParseFailure(prov)
+        else:
+            e = exc.ParseFailure(node_type, failed_input)
+
         if self._config.parser_failure_mode == mode.FAIL:
             raise e
 
@@ -1253,6 +1307,8 @@ class Protc(ImplFactoryHelper, Interpreter):
 
     namespace = 'protc'
 
+    # NOTE namespaces aren't actuall real right now
+
     _BlackBox = None
     _Input = None
     _InputInstance = None
@@ -1264,56 +1320,56 @@ class Protc(ImplFactoryHelper, Interpreter):
     _Term = None
     _FuzzyQuantity = None
 
-    # NOTE namespaces aren't actuall real right now
+    plus = ParamParser.plus  # FIXME common forms class?
 
-    def black_box(self, black_box_name, prov, *body):
-        return self._BlackBox(black_box_name, prov, *body)
-    def black_box_component(self, black_box_name, prov, *body):
+    def black_box(self, black_box_name, *body, prov=None):
+        return self._BlackBox(black_box_name, *body, prov=None)
+    def black_box_component(self, black_box_name, *body, prov=None):
         pass
-    def input(self, black_box, prov, *body):
+    def input(self, black_box, *body, prov=None):
         bb = self.eval(black_box)
-        return self._Input(black_box, prov, *body)
-    def input_instance(self, black_box, prov, *body):
+        return self._Input(black_box, *body, prov=None)
+    def input_instance(self, black_box, *body, prov=None):
         if body:
             log.warning('check to see if protc:input-instance'
                         'is supposed to have a body ...\n'
                         f'{body}')
-        return self._InputInstance(black_box, prov, *body)
-    def output(self, black_box, prov, *body):
-        return self._Output(black_box, prov, *body)
+        return self._InputInstance(black_box, *body, prov=None)
+    def output(self, black_box, *body, prov=None):
+        return self._Output(black_box, *body, prov=None)
 
-    def symbolic_input(self, value, prov, *body):
+    def symbolic_input(self, value, *body, prov=None):
         pass
 
-    def symbolic_output(self, value, prov, *body):
+    def symbolic_output(self, value, *body, prov=None):
         pass
 
-    def aspect(self, name, prov, *body):
-        return self._Aspect(name, prov, *body)
+    def aspect(self, name, *body, prov=None):
+        return self._Aspect(name, *body, prov=None)
 
     #@macro
-    def parameter(self, quantity, *rest_prov):  # FIXME and here we see yet another bug in my original implementation
+    def parameter(self, quantity, *rest, prov=None):  # FIXME and here we see yet another bug in my original implementation
         #""" macro so we can use the parameter parser """
         # no, the namespaceing takes care of it automatically
         #prov_value = self.eval(prov)
         #return self._ParamParser(quantity)
-        *rest, prov = rest_prov
-        return self._Parameter(quantity, prov, tuple(rest))
-    def invariant(self, quantity, *rest_prov):  # FIXME and here we see yet another bug in my original implementation
-        *rest, prov = rest_prov
-        return self._Invariant(quantity, prov, tuple(rest))
+        #*rest, prov = rest_prov
+        return self._Parameter(quantity, prov, tuple(rest))#, tuple(rest))
+    def invariant(self, quantity, *rest, prov=None):  # FIXME and here we see yet another bug in my original implementation
+        #*rest, prov = rest_prov
+        return self._Invariant(quantity, prov, tuple(rest))#, tuple(rest))
     def implied_input(self, args):
         pass
     def implied_output(self, args):
         pass
-    def implied_aspect(self, aspect, prov, *body):
+    def implied_aspect(self, aspect, *body, prov=None):
         pass
     def measure(self, args):
         pass
     def result(self, args):
         pass
-    def executor_verb(self, verb, prov, *body):
-        return self._ExecutorVerb(verb, prov, *body)
+    def executor_verb(self, verb, *body, prov=None):
+        return self._ExecutorVerb(verb, *body, prov=None)
     def objective(self, value, prov):
         pass
     def term(self, curie, label, original=None):
@@ -1330,45 +1386,50 @@ class Protc(ImplFactoryHelper, Interpreter):
         # TODO fuzzy -> controlled vocabulary
         return self._FuzzyQuantity(fuzzy, self.aspect(aspect_string, None))
 
+    def circular_link(self, value, cycle):
+        return ('circular-link', value, cycle)
+
+    def cycle(self, id):
+        return ('cycle', id)
+
 
 setattr(Protc, 'parameter*', Protc.parameter)
 setattr(Protc, 'objective*', Protc.objective)
 
 
-class BlackBox:
-    def __init__(self, name, prov, *body):
+class BlackBox(intf.AJ):
+    def __init__(self, name, *body, prov=None):
         self.name = name
         self.prov = prov
         self.body = body
-class Input:
-    def __init__(self, black_box, prov, *body):
+class Input(intf.AJ):
+    def __init__(self, black_box, *body, prov=None):
         self.black_box = black_box
         self.prov = prov
         self.body = body
-class InputInstance:
-    def __init__(self, black_box, prov, *body):
+class InputInstance(intf.AJ):
+    def __init__(self, black_box, *body, prov=None):
         self.black_box = black_box
         self.prov = prov
         self.body = body
-class Output:
-    def __init__(self, black_box, prov, *body):
+class Output(intf.AJ):
+    def __init__(self, black_box, *body, prov=None):
         self.black_box = black_box
         self.prov = prov
         self.body = body
 
 
-class Invariant:
+class Invariant(intf.AJ):
+
     def __init__(self, quantity, prov, rest=tuple()):
         self.quantity = quantity
         self.prov = prov
         self.rest = rest
 
     def __hash__(self):
+        to_hash = self.__class__, self.quantity, self.prov, self.rest
         try:
-            return hash((self.__class__,
-                        self.quantity,
-                        self.prov,
-                        self.rest,))
+            return hash(to_hash)
         except Exception as e:
             breakpoint()
             'asdf'
@@ -1409,7 +1470,7 @@ class Invariant:
             return tuple(qds.items()) > tuple((qdo.items()))
 
 
-class Parameter:
+class Parameter(intf.AJ):
     __hash__ = Invariant.__hash__
     __eq__ = Invariant.__eq__
     __lt__ = Invariant.__lt__
@@ -1423,11 +1484,27 @@ class Parameter:
         self.rest = rest
 
 
-class Aspect:
+class Aspect(intf.AJ):
 
+    _aspect_to_dimension = {
+        # FIXME this needs to be defined somewhere more visible
+        # unfortunately pint can't alias dimension
+        # we probably need a general aspect -> dimension mapping
+        # since aspect includes distinctions such as a point in
+        # time relative to a fixed reference, vs a duration relative
+        # to any reference, way more issues with length where we
+        # have countless well defined aspects of things that all
+        # share the length dimension and depend on context
+        # l w h r d c etc. hypotenuse, opposite, adjascent (fun)
+        'duration': '[time]',
+    }
     @property
     def dimensionality(self):
-        key = f'[{self.name}]'
+        if self.name in self._aspect_to_dimension:
+            key = self._aspect_to_dimension[self.name]
+        else:
+            key = f'[{self.name}]'
+
         if key not in ur._dimensions:
             raise NotImplementedError(f'unknown dimension {key}')
 
@@ -1438,19 +1515,19 @@ class Aspect:
 
         return pint.util.UnitsContainer({key: 1.0})
 
-    def __init__(self, name, prov, *body):
+    def __init__(self, name, *body, prov=None):
         self.name = name
         self.prov = prov
         self.body = body
 
 
-class ExecutorVerb:
-    def __init__(self, verb, prov, *body):
+class ExecutorVerb(intf.AJ):
+    def __init__(self, verb, *body, prov=None):
         self.verb = verb
         self.prov = prov
         self.body = body
 
-class Term:
+class Term(intf.AJ):
 
     def __init__(self, curie, label, original):
         self.curie = curie
@@ -1465,8 +1542,23 @@ class Term:
         return (self.__class__ == other.__class__ and
                 self.curie == other.curie)
 
+class FuzzyDef(intf.AJ):
+    def __init__(self, aspect, name, expression):
+        self.aspect = aspect
+        self.name = name
+        self.expression = expression
 
-class FuzzyQuantity:
+
+class FuzzyQuantity(intf.AJ):
+
+    _FuzzyDefs = {  # FIXME this should be coming from protc define-fuzzy-quantity
+        ('duration', 'overnight'): '',  # 6 < v < 24
+        ('temperature', 'room temperature'): '',  # 20 +/- 5
+        ('temperature', 'ice cold'): '',  # -10 < v < 4  # melting ice can get quite cold but also quite warm
+        ('immersion-type', 'water'): '',
+        ('immersion-type', 'oil'): '',
+        ('ammount', 'several thousand'): '',  # 1000 < v < 9000
+    }
 
     @property
     def dimensionality(self):
@@ -1490,11 +1582,17 @@ class FuzzyQuantity:
     def __ne__(self, other):
         return not self == other
 
-    def __gt__(self, other):  # TODO review
-        return self != other
+    def __gt__(self, other):  # TODO fuzzy defs
+        return False
 
-    def __lt__(self, other):  # TODO review
-        return self != other
+    def __ge__(self, other):
+        return self == other
+
+    def __lt__(self, other):  # TODO fuzzy defs
+        return False
+
+    def __le__(self, other):
+        return self == other
 
 
 Protc.bindImpl(None,
@@ -1521,6 +1619,9 @@ class RacketParser(ImplFactoryHelper, SExpr):  # XXX TODO
             success, sexp, rest = racket.exp(string_to_parse)
             if rest and not rest_ok:
                 raise ValueError(f'Failed to parse suffix {rest}')
+
+        if sexp is None:
+            raise exc.ParseFailure(string_to_parse)
 
         self = super().__new__(cls, sexp)
         self._input = string_to_parse

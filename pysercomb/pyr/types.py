@@ -17,3 +17,11 @@ class Range:
 
 class ProtcurExpression:
     """ sigh python """
+
+
+class AJ:
+    """ As json helper """
+
+    def asJson(self):
+        # TODO
+        return {'node_type': self.__class__.__name__}

@@ -1,25 +1,44 @@
-hour = min * 60 = h = [time] # override plank length default
-# pH = log10_concentration_Hplus = log [concentration]
-pH = log10_concentration_Hplus
-postnatal_day = day = P = days_since_birth = [time]
+# hour = min * 60 = h = [time] # override plank length default
+@alias hour = h
+#@alias [time] = [duration]  # note the aliasing, have to use as .reference, cannot alias dimensions it seems
+#log10_concentration_Hplus = log10([concentration]) = pH
+log10_concentration_Hplus = [] = pH
+postnatal_day = day = P = days_since_birth = [time]  # P replaces default poise
 fold = [] = x
 # FIXME fold is not a multiplicative unit
 # it is more a multiplcative closure over magnitude (λ (v) (* v magnitude))
 numerical_aperture = [] = NA
-bel = []
+#bel = []  # pint has this now
 degrees_celsius = degC = degrees-celsius
 percent = 0.01 * count = %
 osmole = [substance_particles] = Osm  # this is quite complicated to calculate from first principles since it is actual particles
 osmolarity = Osm / liter
-molarity = molar
-french_gauge = []  # https://en.wikipedia.org/wiki/French_catheter_scale
-birmingham_gauge = []  # https://en.wikipedia.org/wiki/Birmingham_gauge
+@alias molar = molarity
+
+# https://en.wikipedia.org/wiki/French_catheter_scale  Fg = diameter mm * 3
+# Fr defaults to Franklin which aka statcoulomb
+french_gauge = 3 * mm = Fr = Fg
+
+# https://en.wikipedia.org/wiki/Birmingham_gauge spacing is not uniform
+# technically the dimensionality is 1 / [lenght] but since it is non-uniform
+# pint can't handle it without filling in the values explicitly I think
+birmingham_gauge = [] = G  # G defaults to gauss
+12G = 2.769 * mm
+18G = 1.270 * mm
+19G = 1.067 * mm
+20G = 0.9081 * mm
+25G = 0.5144 * mm
+27G = 0.4128 * mm
+
 degrees_fahrenheit = degF = degrees-fahrenheit
 
 # for U -> kat see
 # Wharton, Christopher W.; Eisenthal, Robert (2013), Molecular Enzymology,
 # Tertiary Level Biology, Springer Science and Business Media, p. 82, ISBN 9781461585329.
-enzyme_unit = μmol / min = 1 / 60 μmol / s = 100 / 6 nkat = enzyme-unit = U
+# looks like pint has this now
+# enzyme_unit = μmol / min = 1 / 60 μmol / s = 100 / 6 nkat = enzyme-unit = U
+
+relative_centrifugal_force = 1 * standard_gravity = RCF
 
 @system mgs using international
     meter

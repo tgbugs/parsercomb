@@ -59,6 +59,20 @@ __all__ = [
     'boolean',
 ]
 
+
+# helper types
+
+class ScientificNotation(float):
+    """ type for perserving the original format of scientific notation """
+    def __new__(cls, value):
+        self = super().__new__(cls, value)
+        self.__original = value
+        return self
+
+    def __repr__(self):
+        return self.__original
+
+
 # utiltiy
 
 def wdebug(func):
@@ -387,16 +401,28 @@ boolean = OR(bool_word_lower, bool_word_cap)
 
 # number words
 _numlookup = {
-    'zero':0,
-    'one':1,
-    'two':2,
-    'three':3,
-    'four':4,
-    'five':5,
-    'six':6,
-    'seven':7,
-    'eight':8,
-    'nine':9, }
+    'zero': 0,
+    'one': 1,
+    'two': 2,
+    'three': 3,
+    'four': 4,
+    'five': 5,
+    'six': 6,
+    'seven': 7,
+    'eight': 8,
+    'nine': 9,
+    'ten': 10,
+    'twenty': 20,
+    'thirty': 30,
+    'forty': 40,
+    'fifty': 50,
+    'sixty': 60,
+    'seventy': 70,
+    'eighty': 80,
+    'ninety': 90,
+    # going beyond this requires writing a look-ahead parser
+    # for natural language numbers, which is out of scope atm
+}
 num_word_lower = OR(*make_funcs(_numlookup, _numlookup))
 def num_word_cap(p): return num_word_lower(p.lower())
 num_word = OR(num_word_lower, num_word_cap)
@@ -412,14 +438,14 @@ _float_ = JOINT(TIMES(dash_thing, 0, 1),
                    JOINT(MANY(digit), point, MANY1(digit), join=True)),
                 join=True)
 float_ = transform_value(_float_, lambda f: float(''.join(f)))
-E = COMP('E')
+E = OR(COMP('E'), COMP('e'))
 times = COMP('*')
 exponental_notation = JOINT(OR(float_, int_),  # FIXME not including as a num for now because it is sometimes used distributively across plust-or-minus infix
                             COMPOSE(spaces, OR(by, times)),
                             COMPOSE(spaces, COMP('10')),
                             exponent, int_)
 _scientific_notation = joinstr(JOINT(joinstr(OR(_float_, _int_)), E, joinstr(_int_)))
-scientific_notation = _scientific_notation  # BIND(_scientific_notation, lambda v: RETURN(float(v)))
+scientific_notation = BIND(_scientific_notation, lambda v: RETURN(ScientificNotation(v)))
 num = OR(scientific_notation, float_, int_, num_word)  # float first so that int doesn't capture it
 
 def cull_empty(return_value):

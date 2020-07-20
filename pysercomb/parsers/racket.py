@@ -8,7 +8,8 @@ comment = COMPOSE(whitespace,
                   COMPOSE(COMP(';'),
                           MANY(NOT(newline))))  # leave the newline intact
 def LEXEME(func):
-    return COMPOSE(OR(SKIP(comment, whitespace), whitespace), SKIP(func, OR(comment, whitespace)))
+    return COMPOSE(OR(SKIP(MANY1(comment), whitespace), whitespace),
+                   SKIP(func, OR(MANY1(comment), whitespace)))
 open_paren = LEXEME(COMP('('))
 close_paren = LEXEME(COMP(')'))
 quote_symbol = COMP("'")
@@ -19,6 +20,10 @@ _string = COMPOSE(double_quote_symbol,
                        # string escape has to go first so the \ arent eaten
                        double_quote_symbol))  # TODO escape
 string = LEXEME(joinstr(_string))
+#here_string = COMPOSE(OR(newline, BOF), COMP("#<<"), pattern .+ COMPOSE(pattern, newline))
+# XXX I don't know if we have a stack in here to store the pattern ...
+# actually it is probably easier in that we can just create a new combinator
+# for use inside the function itself ... need to review
 symbol = OR(char, digit, COMP('-'), COMP('_'), colon, COMP('*'),
             NOT(OR(COMP('('),
                    COMP(')'),

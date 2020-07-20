@@ -10,9 +10,30 @@ class TestForms(unittest.TestCase):
         _, v, _  = res
         assert v == 1, res
 
+    def test_int_leading_zero(self):
+        res = int_('00001')
+        _, v, _  = res
+        assert v == 1, res
+
+        res = int_('-00001')
+        _, v, _  = res
+        assert v == -1, res
+
     def test_scinot(self):
         _, v, _ = scientific_notation('1E10')
-        assert v == '1E10', v
+        assert v == 1E10, v
+        assert repr(v) == '1E10', res
+
+    def test_scinot_leading_zero(self):
+        # REMINDER: the primary use case for this format
+        # is as a means to record the exact notation used
+        # by an investigator, therefore we can't parse this
+        # to a float, HOWEVER this induces a roundtripping
+        # issue when a float that is _not_ provided in
+        # scientific notation is converted to scientific notation
+        res = _, v, _ = scientific_notation('2e-06')
+        assert v == 2e-06, res
+        assert repr(v) == '2e-06', res
 
     def test_scinot_neg(self):
         res = scientific_notation('1')
@@ -114,20 +135,45 @@ class TestForms(unittest.TestCase):
             print(res)
             assert ok and v == 4 and (code == '4' or rest)
 
+    def test_multi_comment_exp(self):
+        code = '''; c1
+; c2
+; how many HAHA! third times the charm
+(+ 1  ; asdf
+   #:k-w 3 ;oh no
+   2) ; asdf
+; c3
+; c4'''
+        ok, v, rest = res = racket.exp(code)
+        assert ok and v == ('+', 1, '#:k-w', 3, 2), res
+
+    @pytest.mark.skip('not implemented yet')
+    def test_here_string(self):
+        code = '''#<<abcdefg
+yay some text!
+abcdefg
+'''
+        racket.exp(code)
+        ok, v, rest = res = racket.exp(code)
+        assert ok and not rest, res
+
 
 class TestPyrRacket(unittest.TestCase):
 
     def test_quote_sexp(self):
         hrm = pyru.RacketParser("'(i am a teapot short and stout)")
         ap = hrm.asPython()
+        assert ap == ('quote', ('i', 'am', 'a', 'teapot', 'short', 'and', 'stout'))
 
     def test_quote_str(self):
         hrm = pyru.RacketParser(""" '"i am redundant" """)
         ap = hrm.asPython()
+        assert ap == "i am redundant"
 
     def test_add(self):
         hrm = pyru.RacketParser('(+ 1 2)')
         ap = hrm.asPython()
+        assert ap == 3
 
     def test_complex(self):
         test = """
