@@ -22,6 +22,13 @@ class ProtcurExpression:
 class AJ:
     """ As json helper """
 
+    @property
+    def rchildren(self):  # FIXME this does not go here
+        if hasattr(self, 'body'):
+            for child in self.body:
+                yield child
+                yield from child.rchildren
+
     def asJson(self):
         # TODO
         if self.prov is None:

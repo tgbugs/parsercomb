@@ -129,8 +129,19 @@ class Expr(intf.ProtcurExpression, UnitsHelper, ImplFactoryHelper):
 
 # comparison classes
 
-class _Than:
+class _Than(intf.ProtcurExpression):
     op = None
+    tag = None
+
+    def json(self):
+        # FIXME prefix vs suffix quantities
+        return dict(type=self.tag, value=self.right, unit=self.right.units.json())
+
+    @classmethod
+    def fromJson(cls, json):
+        assert json['type'] == cls.tag
+        #return cls(None, json['value'], json['units'])
+        return cls(None, json['value'])  # FIXME units not supported yet
 
     def to_base_units(self):
         return self.__class__(
@@ -191,6 +202,7 @@ class gtclass(type):
 
 class LessThan(_Than, metaclass=ltclass):
     op = '<'
+    tag = 'less-than'
 
     def __lt__(self, other):
         if type(self) == type(other):
@@ -218,6 +230,7 @@ class LessThan(_Than, metaclass=ltclass):
 
 class GreaterThan(_Than, metaclass=gtclass):
     op = '>'
+    tag = 'greater-than'
 
     def __lt__(self, other):
         if type(self) == type(other):
