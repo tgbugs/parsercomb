@@ -787,9 +787,29 @@ class PlusOrMinus(Range):
     tag = 'plus-or-minus'
 
 
-class Dilution(LoR):
+class Ratio(LoR):  # FIXME dilution is an aspect where the value is a ratio
+
+    # TODO parsing of ratios vs times
+    # includes mass ratio
+    # 1 : dilution-factor
+    # snr etc.
+    # XXX NOTE the referents must also be
+    # arranged in a left:right pattern
+    # usual (aspect thing-1) : (aspect thing-2) :: number-1 : number-2
+
     op = ':'
+    tag = 'ratio'
     dimensionality = pint.util.UnitsContainer({'[]': 1.0})
+
+    def json(self):
+        return dict(type=self.tag, left=self.left, right=self.right)
+
+    def fromJson(cls, json):
+        assert json['type'] == cls.tag
+        return cls(json['left'], json['right'])
+
+    def __str__(self):
+        return self.op.join((self.left, self.right))
 
     def __gt__(self, other):
         # a larger dilution is a smaller fraction (confusingly)
@@ -801,6 +821,7 @@ class Dilution(LoR):
 
 class Dimensions(Oper):
     op = 'x'
+    tag = 'dimensions'
 
     @property
     def dimensionality(self):
@@ -817,7 +838,14 @@ class Dimensions(Oper):
         return str(self)
 
     def asRdf(self):
-        self.dims
+        self.dims  # FIXME name error incoming?
+
+    def json(self):
+        return dict(type=self.tag, value=self.quants)
+
+    def fromJson(cls, json):
+        assert json['type'] == cls.tag
+        return cls(*json['value'])
 
 
 class Approximately(Oper):
@@ -1133,6 +1161,8 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
 
         # FIXME range masquerading as a quantity
 
+        if isinstance(value, str):
+            breakpoint()
         value = self.eval(value)
         value = value if value else 1  # multiplication by 1 for units if the unit is None we get zero?
         unit_value = self.eval(unit)
@@ -1260,9 +1290,9 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
 
         return self._Range(left, right)
 
-    def dilution(self, left, right):
+    def ratio(self, left, right):
         left, right = self._merge_dims(left, right)
-        return self._Dilution(left, right)
+        return self._Ratio(left, right)
 
     def dimensions(self, *quants):
         # TODO reduce multiple units ?? it 1mm x 1mm x 1mm -> 1x1x1mm
@@ -1310,42 +1340,53 @@ class Protc(ImplFactoryHelper, Interpreter):
     # NOTE namespaces aren't actuall real right now
 
     _BlackBox = None
+    _BlackBoxComponent = None  # dependant continuant?
     _Input = None
     _InputInstance = None
     _Output = None
     _Invariant = None
     _Parameter = None
+    _Objective = None
+    _Measure = None
     _Aspect = None
+    _AspectTerminal = None
     _ExecutorVerb = None
     _Term = None
     _FuzzyQuantity = None
 
+    _SymbolicInput = None
+    _SymbolicOutput = None
+
     plus = ParamParser.plus  # FIXME common forms class?
 
     def black_box(self, black_box_name, *body, prov=None):
-        return self._BlackBox(black_box_name, *body, prov=None)
-    def black_box_component(self, black_box_name, *body, prov=None):
-        pass
+        return self._BlackBox(black_box_name, *body, prov=prov)
+
+    def black_box_component(self, black_box_component_name, *body, prov=None):
+        return self._BlackBoxComponent(black_box_component_name, *body, prov=prov)
+
     def input(self, black_box, *body, prov=None):
         bb = self.eval(black_box)
-        return self._Input(black_box, *body, prov=None)
+        return self._Input(black_box, *body, prov=prov)
+
     def input_instance(self, black_box, *body, prov=None):
         if body:
             log.warning('check to see if protc:input-instance'
                         'is supposed to have a body ...\n'
                         f'{body}')
-        return self._InputInstance(black_box, *body, prov=None)
+        return self._InputInstance(black_box, *body, prov=prov)
+
     def output(self, black_box, *body, prov=None):
-        return self._Output(black_box, *body, prov=None)
+        return self._Output(black_box, *body, prov=prov)
 
     def symbolic_input(self, value, *body, prov=None):
-        pass
+        return self._SymbolicInput(value, *body, prov=prov)
 
     def symbolic_output(self, value, *body, prov=None):
-        pass
+        return self._SymbolicOutput(value, *body, prov=prov)
 
     def aspect(self, name, *body, prov=None):
-        return self._Aspect(name, *body, prov=None)
+        return self._Aspect(name, *body, prov=prov)
 
     #@macro
     def parameter(self, quantity, *rest, prov=None):  # FIXME and here we see yet another bug in my original implementation
@@ -1354,24 +1395,37 @@ class Protc(ImplFactoryHelper, Interpreter):
         #prov_value = self.eval(prov)
         #return self._ParamParser(quantity)
         #*rest, prov = rest_prov
-        return self._Parameter(quantity, prov, tuple(rest))#, tuple(rest))
+        return self._Parameter(quantity, *rest, prov=prov)#, tuple(rest))
+
     def invariant(self, quantity, *rest, prov=None):  # FIXME and here we see yet another bug in my original implementation
         #*rest, prov = rest_prov
-        return self._Invariant(quantity, prov, tuple(rest))#, tuple(rest))
-    def implied_input(self, args):
-        pass
-    def implied_output(self, args):
-        pass
+        if hasattr(quantity, 'prov') and quantity.prov is None and prov is not None:
+            quantity.prov = prov  # FIXME fuzzy quantity issue also need to propagate further
+
+        return self._Invariant(quantity, *rest, prov=prov)#, tuple(rest))
+
+    def implied_input(self, args, *body, prov=None):
+        return self.input(args, *body, prov=prov)  # FIXME loss of implied
+
+    def implied_output(self, args, *body, prov=None):
+        return self.output(args, *body, prov=prov)  # FIXME loss of implied
+
     def implied_aspect(self, aspect, *body, prov=None):
-        pass
-    def measure(self, args):
-        pass
+        return self.aspect(aspect, *body, prov=prov)  # FIXME ... when do we no longer care about impliedness?
+
+    def measure(self, variable_name, *body, prov=None):
+        return self._Measure(variable_name, *body, prov=prov)
+
     def result(self, args):
-        pass
+        breakpoint()
+        return prov
+
     def executor_verb(self, verb, *body, prov=None):
-        return self._ExecutorVerb(verb, *body, prov=None)
-    def objective(self, value, prov):
-        pass
+        return self._ExecutorVerb(verb, *body, prov=prov)
+
+    def objective(self, value, *body, prov=None):
+        return self._Objective(value, *body, prov=prov)
+
     def term(self, curie, label, original=None):
         return self._Term(curie, label, original)
 
@@ -1382,49 +1436,155 @@ class Protc(ImplFactoryHelper, Interpreter):
     def fuzzy_quantity(self, fuzzy, aspect_string):  # FIXME another example of a bad impl which can't access the prov
         # also FIXME this needs to be rewritten so that the aspect is on the outside
         # I don't think we can fix this here
-        log.warning('FIXME reminder to fix fuzzy-quantity issues')
+        # indeed we can't we have to rewrite starting from the invariant
+
+        if not hasattr(self.__class__, '_fuzzy_warned'):
+            log.critical('FIXME reminder to fix fuzzy-quantity issues')
+            self.__class__._fuzzy_warned = True
+
         # TODO fuzzy -> controlled vocabulary
-        return self._FuzzyQuantity(fuzzy, self.aspect(aspect_string, None))
+        # XXX NOTE (aspect ...) is NOT the same as the controlled term
+        fq = self._FuzzyQuantity(fuzzy, self._AspectTerminal(aspect_string))
+        fq.aspect.prov = fq
+        return fq
 
     def circular_link(self, value, cycle):
         return ('circular-link', value, cycle)
 
-    def cycle(self, id):
-        return ('cycle', id)
+    def cycle(self, *cycle_members):
+        return ('cycle', *cycle_members)  # hue heu hue hue
 
 
 setattr(Protc, 'parameter*', Protc.parameter)
 setattr(Protc, 'objective*', Protc.objective)
+setattr(Protc, '*measure', Protc.measure)
 
 
 class BlackBox(intf.AJ):
+
+    _type = 'protcur:black-box'
+
     def __init__(self, name, *body, prov=None):
         self.name = name
         self.prov = prov
         self.body = body
+
+    @property
+    def _value(self):
+        return self.name
+
+
+class BlackBoxComponent(intf.AJ):
+
+    _type = 'protcur:black-box-component'
+
+    def __init__(self, name, *body, prov=None):
+        self.name = name
+        self.prov = prov
+        self.body = body
+
+    @property
+    def _value(self):
+        return self.name
+
+
 class Input(intf.AJ):
+
+    _type = 'protcur:input'
+
     def __init__(self, black_box, *body, prov=None):
         self.black_box = black_box
         self.prov = prov
         self.body = body
+
+    @property
+    def _value(self):
+        return self.black_box
+
+    def __hash__(self):
+        return hash((self.black_box, self.prov))
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.black_box == other.black_box
+
+    def __lt__(self, other):
+        if type(self) == type(other):
+            # TODO body length?
+            try:
+                return self.black_box < other.black_box
+            except TypeError:
+                return other.black_box > self.black_box
+        else:
+            return self.__class__.__name__ < other.__class__.__name__
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __gt__(self, other):
+        if type(self) == type(other):
+            # TODO body length?
+            return self.black_box > other.black_box
+        else:
+            return self.__class__.__name__ > other.__class__.__name__
+
+    def __ge__(self, other):
+        return self > other or self == other
+
+
 class InputInstance(intf.AJ):
+
+    _type = 'protcur:input-instance'
+
+    __hash__ = Input.__hash__
+    __eq__ = Input.__eq__
+    __lt__ = Input.__lt__
+    __le__ = Input.__le__
+    __gt__ = Input.__gt__
+    __ge__ = Input.__ge__
+
     def __init__(self, black_box, *body, prov=None):
         self.black_box = black_box
         self.prov = prov
         self.body = body
+
+    @property
+    def _value(self):
+        return self.black_box
+
+
 class Output(intf.AJ):
+
+    _type = 'protcur:output'
+
+    __hash__ = Input.__hash__
+    __eq__ = Input.__eq__
+    __lt__ = Input.__lt__
+    __le__ = Input.__le__
+    __gt__ = Input.__gt__
+    __ge__ = Input.__ge__
+
     def __init__(self, black_box, *body, prov=None):
         self.black_box = black_box
         self.prov = prov
         self.body = body
+
+    @property
+    def _value(self):
+        return self.black_box
 
 
 class Invariant(intf.AJ):
 
-    def __init__(self, quantity, prov, rest=tuple()):
+    _type = 'protcur:invariant'
+
+    def __init__(self, quantity, *rest, prov=None):
         self.quantity = quantity
         self.prov = prov
         self.rest = rest
+
+    @property
+    def _value(self):
+        return self.quantity
 
     def __hash__(self):
         to_hash = self.__class__, self.quantity, self.prov, self.rest
@@ -1447,6 +1607,8 @@ class Invariant(intf.AJ):
         if type(self) != type(other):
             return False
 
+        if isinstance(self.quantity, str):
+            breakpoint()
         qds = self.quantity.dimensionality
         qdo = other.quantity.dimensionality
         if qds == qdo:
@@ -1465,17 +1627,30 @@ class Invariant(intf.AJ):
                 # a boolean type that cannot be negated
                 # within a specific scope
                 #breakpoint()
-                return other.quantity <= self.quantity
+                try:
+                    return other.quantity <= self.quantity
+                except ValueError:
+                    breakpoint()
+                    'asdf'
         else:
             return tuple(qds.items()) > tuple((qdo.items()))
 
+    def __ge__(self, other):
+        return self > other or self == other
+
 
 class Parameter(intf.AJ):
+
+    _type = 'protcur:parameter*'
+
     __hash__ = Invariant.__hash__
     __eq__ = Invariant.__eq__
     __lt__ = Invariant.__lt__
+    __le__ = Invariant.__le__
     __gt__ = Invariant.__gt__
-    def __init__(self, quantity, prov, rest=tuple()):
+    __ge__ = Invariant.__ge__
+
+    def __init__(self, quantity, *rest, prov=None):
         # NOTE quantity here implies that it implements
         # the quantity interface (though python doesn't formalize that notion)
         # so things like range also count here
@@ -1483,8 +1658,50 @@ class Parameter(intf.AJ):
         self.prov = prov
         self.rest = rest
 
+    @property
+    def _value(self):
+        return self.quantity
+
+
+class Objective(intf.AJ):
+
+    _type = 'protcur:objective*'
+
+    def __init__(self, value, *rest, prov=None):
+        self.value = value
+        self.prov = prov
+        self.rest = rest
+
+    @property
+    def _value(self):
+        return self.value
+
+
+class Measure(intf.AJ):
+
+    _type = 'protcur:*measure'
+
+    __hash__ = Invariant.__hash__
+    __eq__ = Invariant.__eq__
+    __lt__ = Invariant.__lt__
+    __gt__ = Invariant.__gt__
+
+    def __init__(self, variable_name, *rest, prov=None):
+        # NOTE quantity here implies that it implements
+        # the quantity interface (though python doesn't formalize that notion)
+        # so things like range also count here
+        self.quantity = variable_name  # FIXME
+        self.prov = prov
+        self.rest = rest
+
+    @property
+    def _value(self):
+        return self.quantity
+
 
 class Aspect(intf.AJ):
+
+    _type = 'protcur:aspect'
 
     _aspect_to_dimension = {
         # FIXME this needs to be defined somewhere more visible
@@ -1520,14 +1737,116 @@ class Aspect(intf.AJ):
         self.prov = prov
         self.body = body
 
+    @property
+    def _value(self):
+        if isinstance(self.name, Term):
+            return self.name
+
+        elif ' ' not in self.name:
+            return 'aspect:' + self.name  # TODO FIXME normalized and prefixed?
+
+        else:
+            return self.name
+
+    def __hash__(self):
+        return hash((self.name, self.prov))
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __lt__(self, other):
+        if type(self) == type(other):
+            return (self.name < other.name or self.name == other.name
+                    and len(self.body) < len(other.body))
+        elif isinstance(other, str):
+            return self.name < other
+        else:
+            return self.__class__.__name__ < other.__class__.__name__
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __gt__(self, other):
+        if type(self) == type(other):
+            return (self.name > other.name or self.name == other.name
+                    and len(self.body) > len(other.body))
+        elif isinstance(other, str):
+            return self.name > other
+        else:
+            return self.__class__.__name__ > other.__class__.__name__
+
+    def __ge__(self, other):
+        return self > other or self == other
+
+
+class AspectTerminal(Aspect):
+    """ An aspect used as a terminal the needs to be lifted.
+        Primariliy used in FuzzyQuantity. """
+
+    def asJson(self):
+        out = {
+            '@id': self._value,
+            '@type': self._type,
+            '@value': self.name,
+            'node_type': self.__class__.__name__,  # TODO @type is what?
+            # don't need dimensionality, can recover from id
+        }
+
+    def __hash__(self):
+        return hash(self.name)
+
 
 class ExecutorVerb(intf.AJ):
+
+    _type = 'protcur:executor-verb'
+
     def __init__(self, verb, *body, prov=None):
         self.verb = verb
         self.prov = prov
         self.body = body
 
+    @property
+    def _value(self):
+        # FIXME this one is going to be complicated
+        return self.verb
+
+
+class SymbolicInput(intf.AJ):
+
+    _type = 'protcur:symbolic-input'
+
+    def __init__(self, value, *body, prov=None):
+        self.value = value
+        self.body = body
+        self.prov = prov
+
+    @property
+    def _value(self):
+        return self.value
+
+
+class SymbolicOutput(intf.AJ):
+
+    _type = 'protcur:symbolic-output'
+
+    __init__ = SymbolicInput.__init__
+
+    @property
+    def _value(self):
+        return self.value
+
+
 class Term(intf.AJ):
+
+    _OntTerm = None
+
+    def asJson(self):
+        if self._OntTerm is None:
+            breakpoint()
+        term = self._OntTerm(self.curie, label=self.label)
+        out = term.asDict()
+        out['original'] = self.original
+        return out
 
     def __init__(self, curie, label, original):
         self.curie = curie
@@ -1541,6 +1860,23 @@ class Term(intf.AJ):
         # FIXME warn on label mismatch?
         return (self.__class__ == other.__class__ and
                 self.curie == other.curie)
+
+    def __lt__(self, other):
+        if type(self) == type(other):
+            return self.label < other.label
+        elif isinstance(other, str):
+            return self.label < other
+        else:
+            return self.__class__.__name__ < other.__class__.__name__
+
+    def __gt__(self, other):
+        if type(self) == type(other):
+            return self.label > other.label
+        elif isinstance(other, str):
+            return self.label > other
+        else:
+            return self.__class__.__name__ > other.__class__.__name__
+
 
 class FuzzyDef(intf.AJ):
     def __init__(self, aspect, name, expression):
@@ -1563,6 +1899,13 @@ class FuzzyQuantity(intf.AJ):
     @property
     def dimensionality(self):
         return self.aspect.dimensionality
+
+    def asJson(self):
+        return {
+            '@id': 'fuzzy:' + self.fuzzy,
+            '@type': ['owl:Class'],  # class is correct at protocol level
+            'aspect': self.aspect.asJson(),
+        }
 
     def __init__(self, fuzzy, aspect):
         self.fuzzy = fuzzy
@@ -1597,13 +1940,19 @@ class FuzzyQuantity(intf.AJ):
 
 Protc.bindImpl(None,
                BlackBox,
+               BlackBoxComponent,
                Input,
                InputInstance,
                Output,
                Invariant,
                Parameter,
+               Objective,
+               Measure,
                Aspect,
+               AspectTerminal,
                ExecutorVerb,
+               SymbolicInput,
+               SymbolicOutput,
                Term,
                FuzzyQuantity,
                )
@@ -1680,7 +2029,7 @@ ParamParser.bindImpl(None,
                      #Quantity,
                      #PrefixQuantity,
                      Range,
-                     Dilution,
+                     Ratio,
                      Dimensions)
 
 # the parsing api for external consumption

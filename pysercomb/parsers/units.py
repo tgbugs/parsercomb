@@ -338,8 +338,9 @@ def make_unit_parser(units_path=None, dicts=None):
 
     _hmsret = lambda v: param('quantity')(JOINT(RETURN(hms(*v)),
                                                 param('unit')(RETURN((('quote', 'seconds'),)))))
-    duration_hms = BIND(JOINT(SKIP(int_, colon), SKIP(int_, colon), int_, join=False), _hmsret)
-    dilution_factor = param('dilution')(JOINT(SKIP(int_, colon), int_, join=False))
+    duration_hms = BIND(JOINT(SKIP(int_, colon), SKIP(int_, colon), int_, join=False), _hmsret)  # FIXME loss of repr
+    #duration_hm = BIND(JOINT(SKIP(int_, colon), int_, join=False), _hmsret)  # TODO FIXME loss of repr
+    ratio = param('ratio')(JOINT(SKIP(int_, colon), int_, join=False))  # dilution starts with 1 but is an aspect
     sq = COMPOSE(spaces, quantity)
     sby = COMPOSE(spaces, by)
     dimensions = param('dimensions')(BIND(JOINT(quantity_with_unit,
@@ -381,8 +382,8 @@ def make_unit_parser(units_path=None, dicts=None):
 
     # TODO objective specifications...
     components = OR(dimensions,
-                    duration_hms,  # must come first otherwise dilution will always match first
-                    dilution_factor,
+                    duration_hms,  # must come first otherwise ratio will always match first
+                    ratio,
                     expression,
                     quantity,
                     boo,
