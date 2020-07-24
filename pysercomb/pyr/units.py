@@ -117,6 +117,10 @@ class _Unit(intf.Unit, ur.Unit):
         """ return a derived unit if one exists for the current units """
         if self.dimensionality:
             try:
+                if self.dimensionality == '[time]':
+                    # don't rewrite time units here
+                    return
+
                 deru = [u for u in self.compatible_units()
                         if self.compare(u, operator.eq) and
                         u != self and
@@ -206,8 +210,38 @@ class _Quant(intf.Quantity, ur.Quantity):
         return f, (ur.Quantity, mag, *units)
 
 
+class _Measurement(intf.Measurement, _Quant, ur.Measurement):
+
+    def json(self):
+        # FIXME prefix vs suffix quantities
+        derq = self.asDerived()
+        if derq:
+            return derq.json()
+
+        return dict(type=self.tag,
+                    value=self.value.magnitude,
+                    error=self.error.magnitude,
+                    units=self.units.json())
+
+    @classmethod
+    def fromJson(cls, json):
+        # error value unit
+        assert json['type'] == cls.tag
+        return cls(json['value'],
+                   json['error'],
+                   json['units'])
+
+    def asRdf(self):
+        raise NotImplementedError('TODO')
+
+    def __reduce__(self):
+        f, (quant, value, error, *units) = super().__reduce__()
+        return f, (ur.Measurement, value, error, *units)
+
+
 ur.Unit = _Unit
 ur.Quantity = _Quant
+ur.Measurement = _Measurement
 
 
 class SExpr(tuple):
@@ -693,7 +727,9 @@ class Range(intf.Range, Oper):
         ld = self.left.dimensionality
         rd = self.right.dimensionality
         if ld != rd:  # FIXME should catch during construction ya?
-            raise TypeError('Range dimensionality mismatch! {ld} != {rd}')
+            msg = (f'{self.__class__.__name__} dimensionality '
+                   f'mismatch! {ld} != {rd}')
+            raise TypeError(msg)
 
         return ld
 
@@ -903,6 +939,10 @@ class Approximately(Oper):
         # FIXME this will come back to bite us I suspect
         return self.expr.dimensionality
 
+    @property
+    def units(self):
+        return self.expr.units
+
     def __init__(self, expr):
         self.expr = expr
 
@@ -916,8 +956,11 @@ class Approximately(Oper):
         """ provide concrete values for the approximateness of approximately """
         return self.expr.plus_or_minus(error, relative)
 
-    def json(self):
-        return str(self)  # FIXME not the best decision here
+    def json(self, ld=True):
+        out = str(self)  # FIXME not the best decision here
+        if ld:  # FIXME compound units are annoying
+            out = quote(str(self), safe=tuple())
+        return out
 
     def __hash__(self):
         return hash((self.__class__, self.expr))
@@ -1792,7 +1835,7 @@ class Aspect(intf.AJ):
         if isinstance(self.name, Term):
             return self.name
 
-        elif ' ' not in self.name:
+        elif ' ' not in self.name and self.name:
             return 'aspect-raw:' + self.name  # TODO FIXME normalized and prefixed?
 
         else:
@@ -1912,7 +1955,13 @@ class Term(intf.AJ):
                 self.curie == other.curie)
 
     def __lt__(self, other):
+        if self.label is None:
+            return True
+
         if type(self) == type(other):
+            if other.label is None:
+                return False
+
             return self.label < other.label
         elif isinstance(other, str):
             return self.label < other
@@ -1920,7 +1969,13 @@ class Term(intf.AJ):
             return self.__class__.__name__ < other.__class__.__name__
 
     def __gt__(self, other):
+        if self.label is None:
+            return False
+
         if type(self) == type(other):
+            if other.label is None:
+                return True
+
             return self.label > other.label
         elif isinstance(other, str):
             return self.label > other

@@ -157,9 +157,25 @@ class _Than(intf.ProtcurExpression):
             rd = self.right.dimensionality
 
         if ld and rd and ld != rd:  # FIXME should catch during construction ya?
-            raise TypeError('Range dimensionality mismatch! {ld} != {rd}')
+            msg = f'{self.__class__.__name__} dimensionality mismatch! {ld} != {rd}'
+            raise TypeError(msg)
 
         return rd if ld is None else ld
+
+    @property
+    def units(self):
+        lu, ru = None, None
+        if self.left is not None:
+            lu = self.left.units
+
+        if self.right is not None:
+            ru = self.right.units
+
+        if lu and ru and lu != ru:  # FIXME should catch during construction ya?
+            msg = f'{self.__class__.__name__} units mismatch! {lu} != {ru}'
+            raise TypeError(msg)
+
+        return ru
 
     def __hash__(self):
         return hash((self.__class__, self.left, self.right))

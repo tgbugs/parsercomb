@@ -10,6 +10,11 @@ class Quantity:
     tag = 'quantity'
 
 
+class Measurement:
+    """ sigh python """
+    tag = 'measurement'
+
+
 class Range:
     """ sigh python """
     tag = 'range'
@@ -79,7 +84,7 @@ class AJ:
                   #):
             out['raw_value'] = {'@value': value}
         else:
-            out['value'] = value
+            out['ast_value'] = value
 
         if self.prov and hasattr(self.prov, 'id'):  # FIXME sigh assumptions about prov
             uris = {

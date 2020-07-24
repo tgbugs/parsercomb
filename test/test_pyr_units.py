@@ -311,3 +311,7 @@ class TestPickle(unittest.TestCase):
     def test_unit(self):
         t = pyru._Unit('month')
         self._doit(t)
+
+    def test_measurement(self):
+        t = pyru._Measurement(10, 1, 'days')
+        self._doit(t)
