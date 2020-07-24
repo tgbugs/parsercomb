@@ -101,11 +101,35 @@ class _Unit(intf.Unit, ur.Unit):
 
         return '%s' % (units.format_babel(spec, **kwspec))
 
-    def json(self):
-        return str(self)
+    def json(self, ld=True):
+        # can't use asDerived in here, only
+        # the quantity should do that
+        out = str(self)
+        if ld:  # FIXME compound units are annoying
+            out = quote(str(self), safe=tuple())
+
+        return out
 
     def asRdf(self):
         return unit[quote(str(self), safe=tuple())]
+
+    def asDerived(self):
+        """ return a derived unit if one exists for the current units """
+        if self.dimensionality:
+            try:
+                deru = [u for u in self.compatible_units()
+                        if self.compare(u, operator.eq) and
+                        u != self and
+                        # Hz & friends cause issues because the denominator is typed
+                        (1 * u).to_base_units() == (1 * self).to_base_units() and
+                        # TODO u.systems?
+                        len(str(u)) < len(str(self))]
+                if deru:
+                    return deru[0]  # FIXME what to do in cases where > 1 ?
+            except KeyError as e:
+                # cannot be simplified
+                # PS how is it that density does not have a derived unit !?
+                pass
 
     def __reduce__(self):
         f, (unit, container) = super().__reduce__()
@@ -134,12 +158,20 @@ class _Quant(intf.Quantity, ur.Quantity):
 
     def json(self):
         # FIXME prefix vs suffix quantities
-        return dict(type=self.tag, value=self.magnitude, unit=self.units.json())
+        derq = self.asDerived()
+        if derq:
+            return derq.json()
+
+        return dict(type=self.tag, magnitude=self.magnitude, units=self.units.json())
 
     @classmethod
     def fromJson(cls, json):
         assert json['type'] == cls.tag
-        return cls(json['value'], json['unit'])
+        try:
+            return cls(json['magnitude'], json['units'])
+        except KeyError:
+            # support old naming convention
+            return cls(json['value'], json['unit'])
 
     def asRdf(self, subject, rdftype=None):
         """ to asRdf the normalized units use q.to_base_units().asRdf(s)"""
@@ -155,6 +187,12 @@ class _Quant(intf.Quantity, ur.Quantity):
         #value, unit = self.units.asRdf(self.magnitude)
         yield subject, rdf.value, magnitude.asRdf()
         yield subject, TEMP.hasUnit, self.units.asRdf()
+
+    def asDerived(self):
+        if self.dimensionality:
+            deru = self.units.asDerived()
+            if deru:
+                return self.magnitude * deru
 
     @property
     def ttl(self):
@@ -637,6 +675,15 @@ class Range(intf.Range, Oper):
     """ This is a non-homogenous range, units may differ """
     op = '-'
 
+    def asDerived(self):
+        deru = self.units.asDerived()
+        if deru:
+            return self.__class__(
+             *(_.asDerived() for _ in (self.left, self.right)))
+
+    def compatible_units(self, *contexts):
+        return self.units.compatible_units(*contexts)
+
     def to_base_units(self):
         return self.__class__(
             *(_.to_base_units() for _ in (self.left, self.right)))
@@ -809,7 +856,7 @@ class Ratio(LoR):  # FIXME dilution is an aspect where the value is a ratio
         return cls(json['left'], json['right'])
 
     def __str__(self):
-        return self.op.join((self.left, self.right))
+        return self.op.join((str(_) for _ in (self.left, self.right)))
 
     def __gt__(self, other):
         # a larger dilution is a smaller fraction (confusingly)
@@ -1902,7 +1949,7 @@ class FuzzyQuantity(intf.AJ):
 
     def asJson(self):
         return {
-            '@id': 'fuzzy:' + self.fuzzy,
+            '@id': 'fuzzy:' + self.fuzzy.replace(' ', '-'),
             '@type': ['owl:Class'],  # class is correct at protocol level
             'aspect': self.aspect.asJson(),
         }
@@ -2044,6 +2091,7 @@ class UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs to
         if sexp is None:  # needed for copy to work happily
             success, sexp, rest = cls._parameter_expression(string_to_parse)
             if rest and not rest_ok:
+                # TODO try to failover to the pint parser for coverage
                 raise ValueError(f'Failed to parse suffix {rest}')
 
         self = super().__new__(cls, sexp)

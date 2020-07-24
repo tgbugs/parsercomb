@@ -36,7 +36,12 @@ class AJ:
         else:
             if hasattr(self.prov, 'id'):
                 # hypothesis helper case
-                id = self.prov.id
+                # reasonable compromise with using curie
+                # FIXME evil because it conflates the
+                # hypothesis view with the protcur view
+                # could use them as blanknodes but tricky then
+                # FIXME this should not be on the generic AJ class ...
+                id = 'protcur:' + self.prov.id
             elif isinstance(self.prov, str):
                 # string identifier case
                 id = self.prov
@@ -50,15 +55,39 @@ class AJ:
                 id = self._value
                 breakpoint()
 
+        #context = {  # doesn't go here
+            #'children': {'@id': 'ilxtr:protcurBody' , '@type': '@id'},
+        #}
+
         out = {
+            #'@context': context,
             '@id': id,
             '@type': self._type,
-            '@value': self._value,
             'node_type': self.__class__.__name__,  # TODO @type is what?
         }
 
+        value = self._value
+        if not isinstance(value, dict) or isinstance(value, list):
+            out['raw_value'] = {'@value': value}
+        else:
+            out['value'] = value
+
+        if self.prov and hasattr(self.prov, 'id'):  # FIXME sigh assumptions about prov
+            uris = {
+                'uri_human_context': self.prov.shareLink,
+                'uri_human_static': self.prov.htmlLink,
+                'uri_api': 'https://hypothes.is/api/annotations/' + self.prov.id,
+            }
+            out.update(uris)
+
         if hasattr(self, 'body'):
-            out['children'] = [node.asJson() for node in self.body]
+            if self.body:
+                try:
+                    body = [node.asJson() for node in self.body]  # FIXME order semantics
+                except AttributeError as e:
+                    breakpoint()
+                    raise e
+                out['children'] = [b['@id'] for b in body if '@id' in b]
 
         # TODO nest children in the jsonld and then hope it flattens?
         return out

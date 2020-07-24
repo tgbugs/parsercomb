@@ -285,6 +285,9 @@ class TestUnits(unittest.TestCase):
         r2 = pyru.Range(pyru._Quant('1 week'), pyru._Quant('10 weeks'))
         assert r1 == r2
 
+    def test_problems(self):
+        hz = pyru.UnitsParser('1 / s').asPython()
+
 
 class TestPickle(unittest.TestCase):
 

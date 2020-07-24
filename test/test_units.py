@@ -329,6 +329,13 @@ class TestExpr(unittest.TestCase):
                         ('/', ('param:unit', ('quote', 'count')),
                          ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3))))
 
+    def test_mixed_seconds(self):
+        test = '1 / s'
+        _, out, _ = parameter_expression(test)
+        print(out)
+        breakpoint()
+        assert out  # FIXME TODO should translate to hertz
+
     def test_mixed_unit_op_order(self):
         test = '4.7 +- 0.6 x 10^7 / mm^3'
         test = '(4.7 +- 0.6 x 10^7) / mm^3'
