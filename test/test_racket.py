@@ -182,7 +182,7 @@ class TestPyrRacket(unittest.TestCase):
   (protc:input "blocking buffer" (hyp: 'L9TvjkRTEem4q5dY1oVi-w))  ; https://hyp.is/L9TvjkRTEem4q5dY1oVi-w
   (protc:input "goat anti-VR1" (hyp: 'D91m9ippEemlRi84HUXyKw)  ; https://hyp.is/D91m9ippEemlRi84HUXyKw
     (protc:implied-aspect "dilution" (hyp: 'uN3DpiP6Eemt8lPtBr6wUg)  ; https://hyp.is/7nDe9iDOEem6X6NI4c_F3A
-      (protc:invariant (param:dilution 1 150) (hyp: '7nDe9iDOEem6X6NI4c_F3A))))  ; https://hyp.is/7nDe9iDOEem6X6NI4c_F3A
+      (protc:invariant (param:ratio 1 150) (hyp: '7nDe9iDOEem6X6NI4c_F3A))))  ; https://hyp.is/7nDe9iDOEem6X6NI4c_F3A
   (protc:invariant (protc:fuzzy-quantity "overnight" "duration")
                     (hyp: 'B9_WniDPEemNW__FACccsA))  ; https://hyp.is/B9_WniDPEemNW__FACccsA
   (protc:parameter* (param:quantity 4 (param:unit 'degrees-celsius)) (hyp: 'DOeIYiDPEem7zPuTeuEhyA)))  ; https://hyp.is/DOeIYiDPEem7zPuTeuEhyA"""

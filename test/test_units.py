@@ -5,8 +5,9 @@ from pysercomb.pyr import units as pyru
 
 
 class TestForms(unittest.TestCase):
-    def test_dilution(self):
-        assert parameter_expression('1:1000')[1] == ('param:dilution', 1, 1000), 'dilution failed'
+    def test_ratio(self):
+        assert parameter_expression('1:1000')[1] == ('param:ratio', 1, 1000), 'ratio failed'
+        assert parameter_expression('2:1')[1] == ('param:ratio', 2, 1), 'ratio failed'
 
     def test_time_seconds(self):
         assert (parameter_expression('00:00:01')[1]
@@ -333,8 +334,10 @@ class TestExpr(unittest.TestCase):
         test = '1 / s'
         _, out, _ = parameter_expression(test)
         print(out)
-        breakpoint()
-        assert out  # FIXME TODO should translate to hertz
+        assert out == ('param:quantity',
+                       1,
+                       ('param:unit-expr',
+                        ('/', ('quote', 'seconds'))))
 
     def test_mixed_unit_op_order(self):
         test = '4.7 +- 0.6 x 10^7 / mm^3'
