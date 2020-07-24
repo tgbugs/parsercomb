@@ -67,7 +67,16 @@ class AJ:
         }
 
         value = self._value
-        if not isinstance(value, dict) or isinstance(value, list):
+        if isinstance(value, str) and value.startswith('aspect-raw:'):  # FIXME hardcoding
+            out['value'] = value
+        elif (isinstance(value, str) or
+              isinstance(value, int) or
+              isinstance(value, float)
+              ):
+        #elif not (isinstance(value, dict) or
+                  #isinstance(value, list) or
+                  #value.__class__.__name__ == 'Term'  # FIXME DUMB
+                  #):
             out['raw_value'] = {'@value': value}
         else:
             out['value'] = value
@@ -82,11 +91,7 @@ class AJ:
 
         if hasattr(self, 'body'):
             if self.body:
-                try:
-                    body = [node.asJson() for node in self.body]  # FIXME order semantics
-                except AttributeError as e:
-                    breakpoint()
-                    raise e
+                body = [node.asJson() for node in self.body]  # FIXME order semantics
                 out['children'] = [b['@id'] for b in body if '@id' in b]
 
         # TODO nest children in the jsonld and then hope it flattens?

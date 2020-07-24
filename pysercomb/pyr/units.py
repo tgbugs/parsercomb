@@ -1404,6 +1404,8 @@ class Protc(ImplFactoryHelper, Interpreter):
     _SymbolicInput = None
     _SymbolicOutput = None
 
+    _CircularLink = None
+
     plus = ParamParser.plus  # FIXME common forms class?
 
     def black_box(self, black_box_name, *body, prov=None):
@@ -1496,7 +1498,8 @@ class Protc(ImplFactoryHelper, Interpreter):
         return fq
 
     def circular_link(self, value, cycle):
-        return ('circular-link', value, cycle)
+        return self._CircularLink(value, cycle)
+        #return ('circular-link', value, cycle)
 
     def cycle(self, *cycle_members):
         return ('cycle', *cycle_members)  # hue heu hue hue
@@ -1790,7 +1793,7 @@ class Aspect(intf.AJ):
             return self.name
 
         elif ' ' not in self.name:
-            return 'aspect:' + self.name  # TODO FIXME normalized and prefixed?
+            return 'aspect-raw:' + self.name  # TODO FIXME normalized and prefixed?
 
         else:
             return self.name
@@ -1985,6 +1988,15 @@ class FuzzyQuantity(intf.AJ):
         return self == other
 
 
+class CircularLink(intf.AJ):
+
+    def asJson(self):
+        return tuple()  # FIXME TODO
+
+    def __init__(self, cycle):
+        self.cycle = cycle
+
+
 Protc.bindImpl(None,
                BlackBox,
                BlackBoxComponent,
@@ -2002,6 +2014,7 @@ Protc.bindImpl(None,
                SymbolicOutput,
                Term,
                FuzzyQuantity,
+               CircularLink,
                )
 
 class RacketParser(ImplFactoryHelper, SExpr):  # XXX TODO
