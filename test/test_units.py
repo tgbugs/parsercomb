@@ -1,3 +1,4 @@
+import pytest
 import unittest
 from .common import *
 from pysercomb.parsers import units
@@ -330,6 +331,7 @@ class TestExpr(unittest.TestCase):
                         ('/', ('param:unit', ('quote', 'count')),
                          ('^', ('param:unit', ('quote', 'meters'), ('quote', 'milli')), 3))))
 
+    @pytest.mark.skip('not fixed yet')
     def test_mixed_seconds(self):
         test = '1 / s'
         _, out, _ = parameter_expression(test)

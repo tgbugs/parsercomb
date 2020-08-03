@@ -33,6 +33,7 @@ setup(name='pysercomb',
           'Programming Language :: Python :: 3.6',
           'Programming Language :: Python :: 3.7',
           'Programming Language :: Python :: 3.8',
+          'Programming Language :: Python :: 3.9',
       ],
       keywords=('python parsing parser combinator scientific '
                 'units parsec protc'),
