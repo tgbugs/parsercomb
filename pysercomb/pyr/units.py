@@ -1553,7 +1553,39 @@ setattr(Protc, 'objective*', Protc.objective)
 setattr(Protc, '*measure', Protc.measure)
 
 
-class BlackBox(intf.AJ):
+class ValueHelper:
+
+    def __hash__(self):
+        return hash((self._value, self.prov))
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self._value == other._value
+
+    def __lt__(self, other):
+        if type(self) == type(other):
+            # TODO body length?
+            try:
+                return self._value < other._value
+            except TypeError:
+                return other._value > self._value
+        else:
+            return self.__class__.__name__ < other.__class__.__name__
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __gt__(self, other):
+        if type(self) == type(other):
+            # TODO body length?
+            return self._value > other._value
+        else:
+            return self.__class__.__name__ > other.__class__.__name__
+
+    def __ge__(self, other):
+        return self > other or self == other
+
+
+class BlackBox(ValueHelper, intf.AJ):
 
     _type = 'protcur:black-box'
 
@@ -1567,7 +1599,7 @@ class BlackBox(intf.AJ):
         return self.name
 
 
-class BlackBoxComponent(intf.AJ):
+class BlackBoxComponent(ValueHelper, intf.AJ):
 
     _type = 'protcur:black-box-component'
 
@@ -1581,7 +1613,7 @@ class BlackBoxComponent(intf.AJ):
         return self.name
 
 
-class Input(intf.AJ):
+class Input(ValueHelper, intf.AJ):
 
     _type = 'protcur:input'
 
@@ -1594,46 +1626,17 @@ class Input(intf.AJ):
     def _value(self):
         return self.black_box
 
-    def __hash__(self):
-        return hash((self.black_box, self.prov))
 
-    def __eq__(self, other):
-        return type(self) == type(other) and self.black_box == other.black_box
-
-    def __lt__(self, other):
-        if type(self) == type(other):
-            # TODO body length?
-            try:
-                return self.black_box < other.black_box
-            except TypeError:
-                return other.black_box > self.black_box
-        else:
-            return self.__class__.__name__ < other.__class__.__name__
-
-    def __le__(self, other):
-        return self < other or self == other
-
-    def __gt__(self, other):
-        if type(self) == type(other):
-            # TODO body length?
-            return self.black_box > other.black_box
-        else:
-            return self.__class__.__name__ > other.__class__.__name__
-
-    def __ge__(self, other):
-        return self > other or self == other
-
-
-class InputInstance(intf.AJ):
+class InputInstance(ValueHelper, intf.AJ):
 
     _type = 'protcur:input-instance'
 
-    __hash__ = Input.__hash__
-    __eq__ = Input.__eq__
-    __lt__ = Input.__lt__
-    __le__ = Input.__le__
-    __gt__ = Input.__gt__
-    __ge__ = Input.__ge__
+    #__hash__ = Input.__hash__
+    #__eq__ = Input.__eq__
+    #__lt__ = Input.__lt__
+    #__le__ = Input.__le__
+    #__gt__ = Input.__gt__
+    #__ge__ = Input.__ge__
 
     def __init__(self, black_box, *body, prov=None):
         self.black_box = black_box
@@ -1645,16 +1648,16 @@ class InputInstance(intf.AJ):
         return self.black_box
 
 
-class Output(intf.AJ):
+class Output(ValueHelper, intf.AJ):
 
     _type = 'protcur:output'
 
-    __hash__ = Input.__hash__
-    __eq__ = Input.__eq__
-    __lt__ = Input.__lt__
-    __le__ = Input.__le__
-    __gt__ = Input.__gt__
-    __ge__ = Input.__ge__
+    #__hash__ = Input.__hash__
+    #__eq__ = Input.__eq__
+    #__lt__ = Input.__lt__
+    #__le__ = Input.__le__
+    #__gt__ = Input.__gt__
+    #__ge__ = Input.__ge__
 
     def __init__(self, black_box, *body, prov=None):
         self.black_box = black_box
@@ -1734,7 +1737,7 @@ class Invariant(intf.AJ):
 
 class Parameter(intf.AJ):
 
-    _type = 'protcur:parameter*'
+    _type = 'protcur:parameter'  # XXX Note that we drop the asterisk for this one, may drop it entirely
 
     __hash__ = Invariant.__hash__
     __eq__ = Invariant.__eq__

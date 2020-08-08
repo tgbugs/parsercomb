@@ -20,7 +20,22 @@ _string = COMPOSE(double_quote_symbol,
                        # string escape has to go first so the \ arent eaten
                        double_quote_symbol))  # TODO escape
 string = LEXEME(joinstr(_string))
-#here_string = COMPOSE(OR(newline, BOF), COMP("#<<"), pattern .+ COMPOSE(pattern, newline))
+
+# #<< everything until newline must be matched on its own line exactly
+# #<< match\n ------- \n match\n
+# also BOF isn't quite right ... it just can't be preceeded by non-whitespace
+#here_string = COMPOSE(OR(whitespace, BOF), COMP("#<<"), pattern .+ COMPOSE(newline, pattern, newline))
+_here_pattern = lambda v: (COMPOSE(newline,
+                                   COMPOSE(COMP(v), newline))
+                           if v else
+                           newline)
+_here_string = BIND(SKIP(COMPOSE(COMPOSE(whitespace, COMP("#<<")),
+                                 joinstr(MANY(NOT(newline)))),
+                         newline),
+                    lambda v: SKIP(MANY(NOT(_here_pattern(v))),
+                                   _here_pattern(v)))
+here_string = BIND(joinstr(_here_string), lambda v: RETURN(repr(v)))
+
 # XXX I don't know if we have a stack in here to store the pattern ...
 # actually it is probably easier in that we can just create a new combinator
 # for use inside the function itself ... need to review
@@ -38,7 +53,7 @@ true = RETVAL(COMP("#t"), True)
 false = RETVAL(COMP("#f"), False)
 num_literal = END(OR(scientific_notation, float_, int_), NOT(symbol))  # FIXME HACK
 cons_pair = COMPOSE(open_paren, JOINT(SKIP(exp, point), SKIP(exp, close_paren)))
-literal = OR(num_literal, string, true, false, empty_list)
+literal = OR(num_literal, string, here_string, true, false, empty_list)
 atom = joinstr(MANY1(symbol))  # not quite right due to numbers
 identifier = LEXEME(atom)
 

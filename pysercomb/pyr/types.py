@@ -46,7 +46,7 @@ class AJ:
                 # hypothesis view with the protcur view
                 # could use them as blanknodes but tricky then
                 # FIXME this should not be on the generic AJ class ...
-                id = 'protcur:' + self.prov.id
+                id = 'hyp-protcur:' + self.prov.id
             elif isinstance(self.prov, str):
                 # string identifier case
                 id = self.prov
