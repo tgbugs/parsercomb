@@ -315,3 +315,15 @@ class TestPickle(unittest.TestCase):
     def test_measurement(self):
         t = pyru._Measurement(10, 1, 'days')
         self._doit(t)
+
+    def test_parser_number(self):
+        t = pyru.RacketParser('1')
+        self._doit(t)
+
+    def test_parser_sexp(self):
+        t = pyru.RacketParser('"hello world"')
+        self._doit(t)
+
+    def test_parser_string(self):
+        t = pyru.RacketParser('(+ 1 2)')
+        self._doit(t)

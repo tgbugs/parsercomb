@@ -256,6 +256,15 @@ class RacketNumber(Number):
     def asPython(self):
         return self._number
 
+    def __eq__(self, other):
+        return type(self) == type(other) and self._number == other._number
+
+    def __repr__(self):
+        return f'RacketNumber<{self._number!r}>'
+
+    def __getnewargs_ex__(self):
+        return (self._number,), {}
+
 
 class RacketString(str):
 
