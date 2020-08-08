@@ -243,6 +243,25 @@ ur.Unit = _Unit
 ur.Quantity = _Quant
 ur.Measurement = _Measurement
 
+class RacketNumber(Number):
+
+    def __new__(cls, number):
+        if not isinstance(number, Number):
+            raise TypeError(f'wat {type(number)}')
+
+        self = super().__new__(cls)
+        self._number = number
+        return self
+
+    def asPython(self):
+        return self._number
+
+
+class RacketString(str):
+
+    def asPython(self):
+        return str(self)
+
 
 class SExpr(tuple):
     """ This class can act as a pretty formatter for s-exprs or it
@@ -1118,6 +1137,7 @@ class Interpreter:
         try:
             function_or_macro = getattr(namespace, pyfirst)
         except AttributeError as e:
+            # FIXME parsing here strings work but the -> python repr is givign issues in here
             raise ValueError(tup) from e
 
         if (hasattr(function_or_macro, '_is_macro') and function_or_macro._is_macro):
@@ -1553,7 +1573,7 @@ setattr(Protc, 'objective*', Protc.objective)
 setattr(Protc, '*measure', Protc.measure)
 
 
-class ValueHelper:
+class IdEqSortHelper:
 
     def __hash__(self):
         return hash((self._value, self.prov))
@@ -1585,7 +1605,7 @@ class ValueHelper:
         return self > other or self == other
 
 
-class BlackBox(ValueHelper, intf.AJ):
+class BlackBox(IdEqSortHelper, intf.AJ):
 
     _type = 'protcur:black-box'
 
@@ -1599,7 +1619,7 @@ class BlackBox(ValueHelper, intf.AJ):
         return self.name
 
 
-class BlackBoxComponent(ValueHelper, intf.AJ):
+class BlackBoxComponent(IdEqSortHelper, intf.AJ):
 
     _type = 'protcur:black-box-component'
 
@@ -1613,7 +1633,7 @@ class BlackBoxComponent(ValueHelper, intf.AJ):
         return self.name
 
 
-class Input(ValueHelper, intf.AJ):
+class Input(IdEqSortHelper, intf.AJ):
 
     _type = 'protcur:input'
 
@@ -1627,7 +1647,7 @@ class Input(ValueHelper, intf.AJ):
         return self.black_box
 
 
-class InputInstance(ValueHelper, intf.AJ):
+class InputInstance(IdEqSortHelper, intf.AJ):
 
     _type = 'protcur:input-instance'
 
@@ -1648,7 +1668,7 @@ class InputInstance(ValueHelper, intf.AJ):
         return self.black_box
 
 
-class Output(ValueHelper, intf.AJ):
+class Output(IdEqSortHelper, intf.AJ):
 
     _type = 'protcur:output'
 
@@ -2090,8 +2110,18 @@ class RacketParser(ImplFactoryHelper, SExpr):  # XXX TODO
         if sexp is None:
             raise exc.ParseFailure(string_to_parse)
 
-        self = super().__new__(cls, sexp)
-        self._input = string_to_parse
+        if isinstance(sexp, tuple):
+            self = super().__new__(cls, sexp)
+            self._input = string_to_parse
+        elif isinstance(sexp, str):
+            self = RacketString(sexp)
+            self._input = string_to_parse
+        elif isinstance(sexp, Number):
+            self = RacketNumber(sexp)
+            self._input = string_to_parse
+        else:
+            raise NotImplementedError(f"Not converting {type(sexp)} yet. Or you have a bug.")
+
         return self
 
     def __call__(self, string_to_parse):

@@ -188,3 +188,34 @@ class TestPyrRacket(unittest.TestCase):
   (protc:parameter* (param:quantity 4 (param:unit 'degrees-celsius)) (hyp: 'DOeIYiDPEem7zPuTeuEhyA)))  ; https://hyp.is/DOeIYiDPEem7zPuTeuEhyA"""
         hrm = pyru.RacketParser(test)
         ap = hrm.asPython()
+
+    def test_here(self):
+        # TODO check behvior wrt EOF vs \nEOF
+        test = """#<<----
+    *--------------- ...
+    |protc: https://hyp.is/--hiOoDkEeqlArtUO_9vSQ protc.byId('--hiOoDkEeqlArtUO_9vSQ')
+    |value: ganglion neurons
+    |exact: ganglion neurons
+    |tags:  {'UBERON:0000045', 'sparc:AnatomicalLocation', 'protc:black-box'}
+    |___________________________________________________________________________
+----
+"""
+        hrm = pyru.RacketParser(test)
+        ap = hrm.asPython()
+        assert ap == test[8:-6]
+
+    def test_number(self):
+        test = '1'
+        hrm = pyru.RacketParser(test)
+        ap = hrm.asPython()
+        assert ap == 1
+
+        test = '1.0'
+        hrm = pyru.RacketParser(test)
+        ap = hrm.asPython()
+        assert ap == 1.0
+
+        test = '1e-10'
+        hrm = pyru.RacketParser(test)
+        ap = hrm.asPython()
+        assert ap == 1e-10

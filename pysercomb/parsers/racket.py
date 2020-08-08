@@ -34,7 +34,8 @@ _here_string = BIND(SKIP(COMPOSE(COMPOSE(whitespace, COMP("#<<")),
                          newline),
                     lambda v: SKIP(MANY(NOT(_here_pattern(v))),
                                    _here_pattern(v)))
-here_string = BIND(joinstr(_here_string), lambda v: RETURN(repr(v)))
+#here_string = BIND(joinstr(_here_string), lambda v: RETURN(dumps(v)))
+here_string = joinstr(_here_string)  # FIXME how to distingish from other strings?
 
 # XXX I don't know if we have a stack in here to store the pattern ...
 # actually it is probably easier in that we can just create a new combinator
