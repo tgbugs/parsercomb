@@ -18,6 +18,7 @@ from pysercomb.parsers import racket
 from pysercomb.parsers.units import _plus_or_minus
 from .core import ImplFactoryHelper, UnitsHelper, Expr
 from .core import GreaterThan, LessThan
+from .core import GreaterThanOrEqual, LessThanOrEqual
 from . import types as intf
 
 try:
@@ -268,8 +269,20 @@ class RacketNumber(Number):
 
 class RacketString(str):
 
+    @property
+    def prov(self):
+        if not hasattr(self, '_prov'):
+            if 'protc: https://hyp.is/' in self:
+                _, id_rest = self.split('protc: https://hyp.is/', 1)
+                id, rest = id_rest.split(' ', 1)
+                return Hyp._HypothesisAnno(id)  # simplify config
+            else:
+                self._prov = None
+
+        return self._prov
+
     def asPython(self):
-        return str(self)
+        return self
 
 
 class SExpr(tuple):
@@ -1084,6 +1097,8 @@ class Interpreter:
         '^': 'exp',
         '<': 'less_than',
         '>': 'greater_than',
+        '<=': 'less_than_or_equal',
+        '>=': 'greater_than_or_equal',
     }
 
     _keyword_start = '#:'  # FIXME way too hardcoded here
@@ -1139,6 +1154,12 @@ class Interpreter:
             if not tup:
                 return None
         else:
+            if isinstance(expression, str) and 'protc: ' in expression:
+                # FIXME this is a horrible evil hack around how I implemented
+                # skipping nodes that I didn't know what to do with in protc/ur
+                # I think there just need to be an unhanded node
+                return RacketString(expression)
+
             return expression
 
         first, *rest = tup
@@ -1448,6 +1469,21 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
 
         return left < right
 
+    def greater_than_or_equal(self, left, *right):
+        if not right:
+            return GreaterThanOrEqual > left
+
+        return left > right
+
+    def less_than_or_equal(self, left, *right):
+        if not right:
+            # interpret as (< quantity left)
+            # with an implicit unmeasured quantity
+            # basically a combinator
+            return LessThanOrEqual < left
+
+        return left < right
+
 
 macro = MacroDecorator()
 @macro.has_macros
@@ -1570,7 +1606,8 @@ class Protc(ImplFactoryHelper, Interpreter):
         return fq
 
     def circular_link(self, value, cycle):
-        return self._CircularLink(value, cycle)
+        # FIXME value seems to always be no-type here which seems to be a mistake?
+        return self._CircularLink(cycle)
         #return ('circular-link', value, cycle)
 
     def cycle(self, *cycle_members):
@@ -2164,7 +2201,7 @@ RacketParser.bindImpl(None, Protc)
 macro = MacroDecorator()
 @macro.has_macros
 class Hyp(ImplFactoryHelper, Interpreter):
-    """ definitions for the protc: namespace """
+    """ definitions for the hyp: namespace """
 
     namespace = 'hyp'
 

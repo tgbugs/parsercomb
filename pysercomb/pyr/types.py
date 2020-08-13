@@ -96,7 +96,11 @@ class AJ:
 
         if hasattr(self, 'body'):
             if self.body:
-                body = [node.asJson() for node in self.body]  # FIXME order semantics
+                try:
+                    body = [node.asJson() for node in self.body]  # FIXME order semantics
+                except AttributeError as e:
+                    breakpoint()
+                    'asdf'
                 out['children'] = [b['@id'] for b in body if '@id' in b]
 
         # TODO nest children in the jsonld and then hope it flattens?

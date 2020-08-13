@@ -259,3 +259,14 @@ class GreaterThan(_Than, metaclass=gtclass):
             return self.right > other.right
         else:
             return True
+
+
+class LessThanOrEqual(LessThan):
+    op = '<='
+    tag = 'less-than-or-equal'
+    # TODO check the sorting rules for this
+
+
+class GreaterThanOrEqual(GreaterThan):
+    op = '>='
+    tag = 'greater-than-or-equal'

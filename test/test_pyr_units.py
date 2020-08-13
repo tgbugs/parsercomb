@@ -288,6 +288,9 @@ class TestUnits(unittest.TestCase):
     def test_problems(self):
         hz = pyru.UnitsParser('1 / s').asPython()
 
+    def test_than_equal(self):
+        g = pyru.UnitsParser('>= 20').asPython()
+        l = pyru.UnitsParser('<= 20').asPython()
 
 class TestPickle(unittest.TestCase):
 
