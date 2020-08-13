@@ -76,8 +76,7 @@ class AJ:
             out['value'] = value
         elif (isinstance(value, str) or
               isinstance(value, int) or
-              isinstance(value, float)
-              ):
+              isinstance(value, float)):
         #elif not (isinstance(value, dict) or
                   #isinstance(value, list) or
                   #value.__class__.__name__ == 'Term'  # FIXME DUMB

@@ -284,6 +284,9 @@ class RacketString(str):
     def asPython(self):
         return self
 
+    def asJson(self):
+        return str(self)
+
 
 class SExpr(tuple):
     """ This class can act as a pretty formatter for s-exprs or it
@@ -1512,6 +1515,8 @@ class Protc(ImplFactoryHelper, Interpreter):
     _SymbolicInput = None
     _SymbolicOutput = None
 
+    _Qualifier = None
+
     _CircularLink = None
 
     plus = ParamParser.plus  # FIXME common forms class?
@@ -1573,9 +1578,22 @@ class Protc(ImplFactoryHelper, Interpreter):
     def measure(self, variable_name, *body, prov=None):
         return self._Measure(variable_name, *body, prov=prov)
 
-    def result(self, args):
+    def result(self, value, *body, prov=None):  # XXX
         breakpoint()
         return prov
+
+    def repeat(self, value, *body, prov=None):  # XXX
+        raise NotImplementedError
+        #breakpoint()
+        # FIXME TODO WAT
+        return
+
+    def process(self, value, *body, prov=None):  # XXX
+        raise NotImplementedError
+        breakpoint()
+
+    def qualifier(self, value, *body, prov=None):  # XXX
+        return self._Qualifier(value, *body, prov=prov)
 
     def executor_verb(self, verb, *body, prov=None):
         return self._ExecutorVerb(verb, *body, prov=prov)
@@ -1958,7 +1976,7 @@ class AspectTerminal(Aspect):
         return hash(self.name)
 
 
-class ExecutorVerb(intf.AJ):
+class ExecutorVerb(IdEqSortHelper, intf.AJ):
 
     _type = 'protcur:executor-verb'
 
@@ -1990,6 +2008,17 @@ class SymbolicInput(intf.AJ):
 class SymbolicOutput(intf.AJ):
 
     _type = 'protcur:symbolic-output'
+
+    __init__ = SymbolicInput.__init__
+
+    @property
+    def _value(self):
+        return self.value
+
+
+class Qualifier(intf.AJ):
+
+    _type = 'protcur:qualifier'
 
     __init__ = SymbolicInput.__init__
 
@@ -2136,6 +2165,7 @@ Protc.bindImpl(None,
                ExecutorVerb,
                SymbolicInput,
                SymbolicOutput,
+               Qualifier,
                Term,
                FuzzyQuantity,
                CircularLink,
