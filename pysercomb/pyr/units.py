@@ -1533,7 +1533,7 @@ class Protc(ImplFactoryHelper, Interpreter):
 
     def input_instance(self, black_box, *body, prov=None):
         if body:
-            log.warning('check to see if protc:input-instance'
+            log.warning('check to see if protc:input-instance '
                         'is supposed to have a body ...\n'
                         f'{body}')
         return self._InputInstance(black_box, *body, prov=prov)
