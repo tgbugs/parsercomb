@@ -292,6 +292,7 @@ class TestUnits(unittest.TestCase):
         g = pyru.UnitsParser('>= 20').asPython()
         l = pyru.UnitsParser('<= 20').asPython()
 
+
 class TestPickle(unittest.TestCase):
 
     def _doit(self, thing):

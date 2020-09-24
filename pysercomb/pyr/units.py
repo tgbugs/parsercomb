@@ -37,6 +37,7 @@ except ImportError:
 ur = pint.UnitRegistry()
 ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
 ur.default_system = 'mgs'  # SNAAAKKEEEEE system
+pint.set_application_registry(ur)
 
 
 class __Monkey:
@@ -138,7 +139,7 @@ class _Unit(intf.Unit, ur.Unit):
 
     def __reduce__(self):
         f, (unit, container) = super().__reduce__()
-        return f, (ur.Unit, container)
+        return pint._unpickle_unit, (ur.Unit, container)
 
 
 class _PrefixUnit(_Unit):
@@ -208,7 +209,7 @@ class _Quant(intf.Quantity, ur.Quantity):
 
     def __reduce__(self):
         f, (quant, mag, *units) = super().__reduce__()
-        return f, (ur.Quantity, mag, *units)
+        return pint._unpickle_quantity, (ur.Quantity, mag, *units)
 
 
 class _Measurement(intf.Measurement, _Quant, ur.Measurement):
@@ -237,7 +238,7 @@ class _Measurement(intf.Measurement, _Quant, ur.Measurement):
 
     def __reduce__(self):
         f, (quant, value, error, *units) = super().__reduce__()
-        return f, (ur.Measurement, value, error, *units)
+        return pint._unpickle_measurement, (ur.Measurement, value, error, *units)
 
 
 ur.Unit = _Unit

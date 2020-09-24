@@ -45,7 +45,7 @@ setup(name='pysercomb',
       package_data={'pysercomb.pyr': ['pyr_units.txt']},
       python_requires='>=3.6',
       tests_require=tests_require,
-      install_requires=['pint', 'uncertainties', 'babel'],  # need to fix pint deps
+      install_requires=['pint>=0.16.1', 'uncertainties', 'babel'],  # need to fix pint deps
       extras_require={'units': units_require,
                       'rdf': rdf_require,
                       'test': tests_require,
