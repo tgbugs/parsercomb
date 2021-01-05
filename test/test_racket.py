@@ -219,3 +219,10 @@ class TestPyrRacket(unittest.TestCase):
         hrm = pyru.RacketParser(test)
         ap = hrm.asPython()
         assert ap == 1e-10
+
+    def test_liter_lambda_bug(self):
+        test = """
+(protc:parameter* (param:quantity 1 (param:unit 'liters 'micro)) #:prov (hyp: 'EQrx4CDKEemxBCfTHP1Bhg))  ; https://hyp.is/EQrx4CDKEemxBCfTHP1Bhg"""
+        hrm = pyru.RacketParser(test)
+        ap = hrm.asPython()
+        assert ap.quantity.units.json() != 'lambda'

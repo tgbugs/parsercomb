@@ -156,10 +156,11 @@ def param(prefix_name):
         return BIND(parser_func, add_function_type)
     return paramed
 
+
 debug = param('debug')
 
 # basic tokens and operators
-_plus_or_minus = '±'
+_plus_or_minus = '±'  # b'\xc2\xb1' '\u00b1'
 plus_or_minus_symbol = COMP(_plus_or_minus)  # NOTE range and +- are interconvertable...
 plus_or_minus_pair = COMP('+-')  # yes that is an b'\x2d'
 plus_over_minus = COMP('+/-')
@@ -174,9 +175,15 @@ multiplication = RETVAL(OR(COMP('*'), by), '*')  # ok as long as dimensions are 
 math_op = OR(addition, subtraction, division, multiplication, exponent)  # FIXME subtraction is going to be a pain
 unit_op = OR(division, multiplication)
 lt = COMP('<')
-lte = COMP('<=')
+_less_than_or_equal_to = '≤'  # b'\xe2\x89\xa4' '\u2264'
+lte_symbol = COMP(_less_than_or_equal_to)
+lte_pair = COMP('<=')
+lte = RETVAL(OR(lte_pair, lte_symbol), '<=')
 gt = COMP('>')
-gte = COMP('>=')
+_greater_than_or_equal_to = '≥'  # b'\xe2\x89\xa5' '\u2265'
+gte_symbol = COMP(_greater_than_or_equal_to)
+gte_pair = COMP('>=')
+gte = RETVAL(OR(gte_pair, gte_symbol), '>=')
 comparison = OR(lte, gte, lt, gt)
 approx = RETVAL(COMP('~'), 'approximately')
 
@@ -354,7 +361,11 @@ def make_unit_parser(units_path=None, dicts=None):
                                                         MANY1(COMPOSE(COMPOSE(spaces, SKIP(by, spaces)),
                                                                       END(quantity, NOT(exponent))))),
                                                   flatten))
-    prefix_operator = OR(approx, plus_or_minus, comparison)
+    prefix_operator = OR(approx, plus_or_minus, comparison)  # FIXME approx is not really an operator
+    # TODO when parsing approx actually has higher affinity for the
+    # number than the units, because it modifies the certainty about
+    # the magnitude independent of the units and thus should probably
+    # parse as (quantity (~ 10)) instead of (~ (quantity 10))
     def infix_expr(thing): return parOR(infix_expression)(thing)
     infix_suffix = JOINT(COMPOSE(spaces, infix_operator),
                          COMPOSE(spaces, OR(quantity, BIND(infix_expr, flatten1))))

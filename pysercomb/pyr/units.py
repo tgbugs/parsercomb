@@ -39,7 +39,6 @@ ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
 ur.default_system = 'mgs'  # SNAAAKKEEEEE system
 pint.set_application_registry(ur)
 
-
 class __Monkey:
 
     def __hash__(self):
@@ -86,6 +85,12 @@ ur.Measurement.__le__ = __Monkey.__gt__
 ur.Measurement.__ge__ = __Monkey.__ge__
 
 
+_deprecated_units = (
+    # used to prevent use of deprecated units as derived units
+    'lambda',
+)
+
+
 class _Unit(intf.Unit, ur.Unit):
 
     def format_babel(self, spec='', **kwspec):
@@ -115,6 +120,10 @@ class _Unit(intf.Unit, ur.Unit):
     def asRdf(self):
         return unit[quote(str(self), safe=tuple())]
 
+    @property
+    def _name(self):
+        return next(iter(self._units._d))
+
     def asDerived(self):
         """ return a derived unit if one exists for the current units """
         if self.dimensionality:
@@ -124,7 +133,8 @@ class _Unit(intf.Unit, ur.Unit):
                     return
 
                 deru = [u for u in self.compatible_units()
-                        if self.compare(u, operator.eq) and
+                        if u._name not in _deprecated_units and
+                        self.compare(u, operator.eq) and
                         u != self and
                         # Hz & friends cause issues because the denominator is typed
                         (1 * u).to_base_units() == (1 * self).to_base_units() and
@@ -979,6 +989,9 @@ class Dimensions(Oper):
 class Approximately(Oper):
     """ No numercial uncertainty given, but with facilities to operationalize it. """
 
+    op = '~'
+    tag = 'approximately'
+
     @property
     def dimensionality(self):
         # FIXME this will come back to bite us I suspect
@@ -989,6 +1002,8 @@ class Approximately(Oper):
         return self.expr.units
 
     def __init__(self, expr):
+        # FIXME accepting an already parsed value causes
+        # inversion issues when coming from json
         self.expr = expr
 
     def __str__(self):
@@ -999,12 +1014,57 @@ class Approximately(Oper):
 
     def quantify(self, error, relative=False):
         """ provide concrete values for the approximateness of approximately """
-        return self.expr.plus_or_minus(error, relative)
+        return self.expr.plus_minus(error, relative)
+
+    @classmethod
+    def fromJson(cls, json):
+        assert json['type'] == cls.tag
+        # FIXME the generic fromJson from sparcur doesn't work here
+        value = json['value']
+        for c in (ur.Quantity, Ratio, Dimensions):
+            if c.tag == value['type']:
+                return cls(c.fromJson(value))
+        else:
+            # FIXME this will come back to bite us
+            msg = f'How to approximate {value["type"]}'
+            raise NotImplementedError(msg)
 
     def json(self, ld=True):
         out = str(self)  # FIXME not the best decision here
         if ld:  # FIXME compound units are annoying
-            out = quote(str(self), safe=tuple())
+            #out = quote(str(self), safe=tuple())
+            # FIXME TODO not entirely clear what order these go in if
+            # you are thinking with types then you would want to know
+            # that the value was a quantity first and then that the
+            # value itself was approximate not that the units or
+            # anything else were approximate, pint doesn't do this
+            # and instead has a separate class Measurement that can
+            # manage uncertainty, but it has to be quantified, not
+            # approximate
+
+            # XXX NOTE practically we keep Approximately outside in
+            # the python implementation because doing the right thing
+            # and creating an approximate magnitude that would work
+            # correctly inside a pint quantity would mean having a way
+            # to work with unquantified pint measurements, which
+            # requires stronger mathematic machinery than pint or pyr
+            # has right now, and would require propagating the types
+            # in the approximateness through whole equations which is
+            # no fun for a variety of reasons, having a default way to
+            # determine the +/- isn't really viable, the user needs to
+            # provide a concrete estimate, because ~1000 -> +/- 10
+            # is dramatically different than ~1000 +/- 100 vs +/- 500
+
+            # the trade off is whether you want to deal with
+            # approximate values wherever quantities might appear in
+            # the ast, or whether you want to deal with approximate
+            # values anywhere that you might ever encounter an number
+            # ugh approx is extremely ambiguous ...
+
+            # TODO jsonld bits
+            out = {'type': self.tag,
+                   'value': self.expr.json()}
+
         return out
 
     def __hash__(self):
@@ -1358,6 +1418,9 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
             raise e
 
     def approximately(self, expression):
+        # FIXME TODO I think the parse tree is inverted and approximately
+        # goes on the magnitude inside the number instead of wrapping
+        # the whole expression
         return Approximately(expression)
         return f'~{expression}'  # FIXME not quite ready
 

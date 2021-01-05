@@ -292,6 +292,10 @@ class TestUnits(unittest.TestCase):
         g = pyru.UnitsParser('>= 20').asPython()
         l = pyru.UnitsParser('<= 20').asPython()
 
+        ge = pyru.UnitsParser('≥ 20').asPython()
+        le = pyru.UnitsParser('≤ 20').asPython()
+        assert g == ge and l == le
+
 
 class TestPickle(unittest.TestCase):
 
