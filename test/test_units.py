@@ -35,30 +35,34 @@ class TestForms(unittest.TestCase):
         # be useful
         #('P10D12H'),  # TODO should fail
         strings = (
+            ('P1.5M', ('iso8601-duration',
+                       ('param:quantity', 1.5, ('param:unit', ('quote', 'months'))),)),
+            ('P1,5M', ('iso8601-duration',
+                       ('param:quantity', 1.5, ('param:unit', ('quote', 'months'))),)),
             ('P1M', ('iso8601-duration',
-                     ('param:quantity', '1', ('param:unit', ('quote', 'months'))),)),
+                     ('param:quantity', 1, ('param:unit', ('quote', 'months'))),)),
             ('PT1M', ('iso8601-duration',
-                      ('param:quantity', '1', ('param:unit', ('quote', 'minutes'))),)),
+                      ('param:quantity', 1, ('param:unit', ('quote', 'minutes'))),)),
             ('P10D', ('iso8601-duration',
-                      ('param:quantity', '10', ('param:unit', ('quote', 'days'))),)),
+                      ('param:quantity', 10, ('param:unit', ('quote', 'days'))),)),
             ('PT12H', ('iso8601-duration',
-                       ('param:quantity', '12', ('param:unit', ('quote', 'hours'))),)),
+                       ('param:quantity', 12, ('param:unit', ('quote', 'hours'))),)),
             ('P1Y1D', ('iso8601-duration',
-                       ('param:quantity', '1', ('param:unit', ('quote', 'years'))),
-                       ('param:quantity', '1', ('param:unit', ('quote', 'days'))),)),
+                       ('param:quantity', 1, ('param:unit', ('quote', 'years'))),
+                       ('param:quantity', 1, ('param:unit', ('quote', 'days'))),)),
             ('PT1M1S', ('iso8601-duration',
-                        ('param:quantity', '1', ('param:unit', ('quote', 'minutes'))),
-                        ('param:quantity', '1', ('param:unit', ('quote', 'seconds'))),)),
+                        ('param:quantity', 1, ('param:unit', ('quote', 'minutes'))),
+                        ('param:quantity', 1, ('param:unit', ('quote', 'seconds'))),)),
             ('P10DT12H', ('iso8601-duration',
-                          ('param:quantity', '10', ('param:unit', ('quote', 'days'))),
-                          ('param:quantity', '12', ('param:unit', ('quote', 'hours'))),)),
+                          ('param:quantity', 10, ('param:unit', ('quote', 'days'))),
+                          ('param:quantity', 12, ('param:unit', ('quote', 'hours'))),)),
             ('P4Y3M10DT12H1M2S', ('iso8601-duration',
-                                  ('param:quantity', '4', ('param:unit', ('quote', 'years'))),
-                                  ('param:quantity', '3', ('param:unit', ('quote', 'months'))),
-                                  ('param:quantity', '10', ('param:unit', ('quote', 'days'))),
-                                  ('param:quantity', '12', ('param:unit', ('quote', 'hours'))),
-                                  ('param:quantity', '1', ('param:unit', ('quote', 'minutes'))),
-                                  ('param:quantity', '2', ('param:unit', ('quote', 'seconds'))),)),
+                                  ('param:quantity', 4, ('param:unit', ('quote', 'years'))),
+                                  ('param:quantity', 3, ('param:unit', ('quote', 'months'))),
+                                  ('param:quantity', 10, ('param:unit', ('quote', 'days'))),
+                                  ('param:quantity', 12, ('param:unit', ('quote', 'hours'))),
+                                  ('param:quantity', 1, ('param:unit', ('quote', 'minutes'))),
+                                  ('param:quantity', 2, ('param:unit', ('quote', 'seconds'))),)),
         )
         bads = []
         for s, r in strings:
@@ -77,7 +81,7 @@ class TestForms(unittest.TestCase):
                     ('param:prefix-unit', ('quote', 'postnatal-days')))), 'postnatal_day failed'
         assert (parameter_expression('P14D')[1]
                 == ('iso8601-duration',
-                    ('param:quantity', '14',
+                    ('param:quantity', 14,
                      ('param:unit', ('quote', 'days'))))), 'iso8601duration failed'
 
 

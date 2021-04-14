@@ -309,9 +309,11 @@ def make_unit_parser(units_path=None, dicts=None):
     # XXX FIXME loss of representation issues are possible here
     # the solution is to represent the value as a sum I think
     _dur_digits = BIND(MANY1(digit), lambda v: RETURN(''.join(v)))
-    _dur_number = OR(JOINT(_dur_digits, RETVAL(OR(comma, point), '.'), _dur_digits, join=True),
+    _dur_number = OR(BIND(JOINT(_dur_digits, RETVAL(OR(comma, point), '.'), _dur_digits, join=True),
+                          # FIXME precision etc.
+                          lambda v: RETURN(float(''.join(v)))),
                      # FIXME -> represent
-                     _dur_digits)
+                     BIND(_dur_digits, lambda v: RETURN(int(v))))
     _, _dur_date, _, _dur_time = (
         (_dur_P,),
         (_dur_Y, _dur_M, _dur_D),
