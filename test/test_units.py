@@ -26,8 +26,63 @@ class TestForms(unittest.TestCase):
         assert (parameter_expression('1:99:01')[1]
                 == ('param:quantity', 9541, ('param:unit', ('quote', 'seconds')))), 'duration failed'
 
+    def test_iso8601duration(self):
+        # when you stop to think about it, it is kind of silly to report a
+        # duration that crosses the months/days boundary due to the fact that
+        # months have a variable number of days, so you will already be +/- a
+        # day or 3 depending on the exact place in time where the duration is
+        # specified, for use cases outside scientific I can image that it might
+        # be useful
+        #('P10D12H'),  # TODO should fail
+        strings = (
+            ('P1M', ('iso8601-duration',
+                     ('param:quantity', '1', ('param:unit', ('quote', 'months'))),)),
+            ('PT1M', ('iso8601-duration',
+                      ('param:quantity', '1', ('param:unit', ('quote', 'minutes'))),)),
+            ('P10D', ('iso8601-duration',
+                      ('param:quantity', '10', ('param:unit', ('quote', 'days'))),)),
+            ('PT12H', ('iso8601-duration',
+                       ('param:quantity', '12', ('param:unit', ('quote', 'hours'))),)),
+            ('P1Y1D', ('iso8601-duration',
+                       ('param:quantity', '1', ('param:unit', ('quote', 'years'))),
+                       ('param:quantity', '1', ('param:unit', ('quote', 'days'))),)),
+            ('PT1M1S', ('iso8601-duration',
+                        ('param:quantity', '1', ('param:unit', ('quote', 'minutes'))),
+                        ('param:quantity', '1', ('param:unit', ('quote', 'seconds'))),)),
+            ('P10DT12H', ('iso8601-duration',
+                          ('param:quantity', '10', ('param:unit', ('quote', 'days'))),
+                          ('param:quantity', '12', ('param:unit', ('quote', 'hours'))),)),
+            ('P4Y3M10DT12H1M2S', ('iso8601-duration',
+                                  ('param:quantity', '4', ('param:unit', ('quote', 'years'))),
+                                  ('param:quantity', '3', ('param:unit', ('quote', 'months'))),
+                                  ('param:quantity', '10', ('param:unit', ('quote', 'days'))),
+                                  ('param:quantity', '12', ('param:unit', ('quote', 'hours'))),
+                                  ('param:quantity', '1', ('param:unit', ('quote', 'minutes'))),
+                                  ('param:quantity', '2', ('param:unit', ('quote', 'seconds'))),)),
+        )
+        bads = []
+        for s, r in strings:
+            ok, res, rest = iso8601duration(s)
+            if r != res:
+                print('exp:', r)
+                print('got:', res)
+                bads.append(s)
+
+        assert not bads, bads
+
+    def test_postnatal_day_vs_iso8601duration(self):
+        assert (parameter_expression('P14')[1]
+                # FIXME -day vs -days
+                == ('param:quantity', 14,
+                    ('param:prefix-unit', ('quote', 'postnatal-days')))), 'postnatal_day failed'
+        assert (parameter_expression('P14D')[1]
+                == ('iso8601-duration',
+                    ('param:quantity', '14',
+                     ('param:unit', ('quote', 'days'))))), 'iso8601duration failed'
+
 
 class TestUnit(unittest.TestCase):
+
     def test_minutes(self):
         """ make sure we don't parse min -> milli inches """
         assert unit('min') == (True, ('param:unit', ('quote', 'minutes')), ''), 'min did not parse to minutes'

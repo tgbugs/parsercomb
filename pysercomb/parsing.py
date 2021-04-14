@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3
 
 import os
 from .utils import log
@@ -33,7 +33,6 @@ __all__ = [
 
     'make_funcs',
     'joinstr',
-    'transform_value',
     'flatten',
     'flatten1',
     'noop',
@@ -50,6 +49,7 @@ __all__ = [
     'char',
     'colon',
     'digit',
+    'comma',
     'point',
     'exponent',
     'scientific_notation',
@@ -324,15 +324,6 @@ def RETVAL(func, val):
     #return BIND(func, return_bound_val)
     return COMPOSE(func, RETURN(val))
 
-def transform_value(parser_func, func_to_apply):
-    def transformed(p):
-        success, value, rest = parser_func(p)
-        if success:
-            return success, func_to_apply(value), rest
-        else:
-            return success, value, rest
-    return transformed
-
 def make_funcs(inpt, lookuptable):
     for token in sorted(inpt, key=lambda a: -len(a)):  # sort to simulate right associativity (ie da recognized even if d a token)
         def lookup_function(v):
@@ -345,13 +336,11 @@ def joinstr(func):
     return BIND(func, jstring)
 
 def STRINGIFY(func):
-    return transform_value(func, lambda v: '"' + str(v).replace('"', '\\"') + '"')
+    return BIND(func, lambda v: RETURN('"' + str(v).replace('"', '\\"') + '"'))
 
 def AT_MOST_ONE(func, fail=True): return BIND(TIMES(func, 0, 1, fail), RETURNBOX)
-#def AT_MOST_ONE(func, fail=True): return transform_value(TIMES(func, 0, 1, fail), lambda v: v[0] if v else v)
 
 def EXACTLY_ONE(func, fail=True): return BIND(TIMES(func, 1, 1, fail), RETURNBOX)
-#def EXACTLY_ONE(func, fail=True): return transform_value(TIMES(func, 1, 1, fail), lambda v: v[0] if v else v)
 
 # I hate the people who felt the need to make different type blocks for this stuff in 1673
 HYPHEN = b'\xe2\x80\x90'.decode()  # Y U DO DIS unicode 2010
@@ -375,7 +364,8 @@ spaces = MANY(space)
 spaces1 = MANY1(space)
 colon = COMP(':')
 exponent = COMP('^')
-point = COMP('.')
+comma = COMP(',')
+point = COMP('.')  # yes this is a period
 dot = COMP('·')  # b'\xc2\xb7' MIDDLE DOT U+00B7
 
 newline = COMP('\n')
@@ -432,12 +422,12 @@ digits = [str(_) for _ in range(10)]
 def digit(p): return oper(p, lambda d: d in digits)
 def char(p): return oper(p, lambda c: c.isalpha())
 _int_ = JOINT(TIMES(dash_thing, 0, 1), MANY1(digit), join=True)
-int_ = transform_value(_int_, lambda i: int(''.join(i)))
+int_ = BIND(_int_, lambda i: RETURN(int(''.join(i))))
 _float_ = JOINT(TIMES(dash_thing, 0, 1),
                 OR(JOINT(MANY1(digit), point, MANY(digit), join=True),
                    JOINT(MANY(digit), point, MANY1(digit), join=True)),
                 join=True)
-float_ = transform_value(_float_, lambda f: float(''.join(f)))
+float_ = BIND(_float_, lambda f: RETURN(float(''.join(f))))
 E = OR(COMP('E'), COMP('e'))
 times = COMP('*')
 exponental_notation = JOINT(OR(float_, int_),  # FIXME not including as a num for now because it is sometimes used distributively across plust-or-minus infix

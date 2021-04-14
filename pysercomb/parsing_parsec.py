@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3
 
 import parsec
 import os
@@ -145,7 +145,7 @@ to = parsec.string('to')
 range_indicator = (thing_accepted_as_a_dash ^ to).parsecmap(lambda v: 'range')
 ph = parsec.string('pH')
 P = parsec.string('P')
-post_natal_day = P.parsecmap(lambda v: "'postnatal-day")
+post_natal_day = P.parsecmap(lambda v: "'postnatal-days")
 fold_prefix = parsec.ends_with(by, num).parsecmap(lambda v: "'fold")
 prefix_unit = param('prefix-unit')(OR(ph, post_natal_day, fold_prefix).parsecmap(BOX))
 prefix_quantity = (prefix_unit + (spaces >> num)).parsecmap(lambda v: (v[1], v[0]))

@@ -306,10 +306,59 @@ def make_unit_parser(units_path=None, dicts=None):
 
     def range_thing(func): return JOINT(func, COMPOSE(spaces, range_indicator), COMPOSE(spaces, func))
 
+    # XXX FIXME loss of representation issues are possible here
+    # the solution is to represent the value as a sum I think
+    _dur_digits = BIND(MANY1(digit), lambda v: RETURN(''.join(v)))
+    _dur_number = OR(JOINT(_dur_digits, RETVAL(OR(comma, point), '.'), _dur_digits, join=True),
+                     # FIXME -> represent
+                     _dur_digits)
+    _, _dur_date, _, _dur_time = (
+        (_dur_P,),
+        (_dur_Y, _dur_M, _dur_D),
+        (_dur_T,),
+        (_dur_H, _dur_M, _dur_S)
+    ) = [[RETVAL(COMP(l), val) for l, val in zip(ls, vals)]
+         for ls, vals in zip(('P', 'YMD', 'T', 'HMS'),
+                       ((None,),
+                        [('quote', u) for u in ('years', 'months', 'days')],
+                        (None,),
+                        [('quote', u) for u in ('hours', 'minutes', 'seconds')]))]
+    # technically these could be parsed in any order because we know the type of
+    # the individual duration, however there are some weird impliciations about
+    # the ordering, depending on which section you count first
+    #  012   01   02   12   0   1   2
+    # 'YMD' 'YM' 'YD' 'MD' 'Y' 'M' 'D'
+    # 'HMS' 'HM' 'HS' 'MS' 'H' 'M' 'S'
+    _inds = [[0, 1, 2], [0, 1], [0, 2], [1 ,2], [0], [1], [2]]
+    combs = _c_date, _c_time = [[[param('quantity')
+                                  (ANDTHEN(_dur_number,
+                                           param('unit')
+                                           (BIND(elems[index], RETBOX))))
+                                  for index in indexes]
+                                 for indexes in _inds]
+                                for elems in (_dur_date, _dur_time)]
+    _p_date, _p_time = [OR(*[JOINT(*parts, join=False)
+                             for parts in comb])
+                        for comb in combs]
+    _tp_time = COMPOSE(_dur_T, _p_time)
+    _p_datetime = JOINT(_p_date, _tp_time, join=True)
+    iso8601duration = BIND(
+        COMPOSE(_dur_P,
+                # AT_MOST_ONE doesn't quite work due to inconsistent return
+                # values TODO need a construct doesn't require a full reparse of
+                # the date without leaving a hole in the result
+                # OR(_tp_time, ANDTHEN(_p_date, AT_MOST_ONE(_tp_time)))
+                OR(_tp_time,
+                   _p_datetime,
+                   _p_date)),
+        # returns functions accepting a starting time and an
+        # ending time
+        lambda v: RETURN(('iso8601-duration', *v)))
+
     pH = RETVAL(COMP('pH'), BOX("'pH"))
-    post_natal_day = RETVAL(COMP('P'), BOX("'postnatal-day"))  # FIXME note that in our unit hierarchy this is a subclass of days
+    post_natal_day = RETVAL(COMP('P'), BOX(('quote', 'postnatal-days')))  # FIXME note that in our unit hierarchy this is a subclass of days
     _fold_prefix = END(by, num)
-    fold_prefix = RETVAL(_fold_prefix, BOX("'fold"))
+    fold_prefix = RETVAL(_fold_prefix, BOX(('quote', 'fold')))
 
     prefix_unit = param('prefix-unit')(OR(pH, post_natal_day, fold_prefix))
     _prefix_quantity = JOINT(prefix_unit, COMPOSE(spaces, num_expression))  # OR(JOINT(fold, num))
@@ -395,6 +444,7 @@ def make_unit_parser(units_path=None, dicts=None):
     components = OR(dimensions,
                     duration_hms,  # must come first otherwise ratio will always match first
                     ratio,
+                    iso8601duration,  # FIXME it should be possible to compose this
                     expression,
                     quantity,
                     boo,
@@ -416,6 +466,7 @@ def make_unit_parser(units_path=None, dicts=None):
                   'expression': expression,
                   'num_thing': num_thing,
                   'dimensions_no_math': dimensions_no_math,  # TODO
+                  'iso8601duration': iso8601duration,
                  }
 
     return parameter_expression, quantity, unit, unit_atom, debug_dict
