@@ -296,6 +296,11 @@ class TestUnits(unittest.TestCase):
         le = pyru.UnitsParser('≤ 20').asPython()
         assert g == ge and l == le
 
+    def test_iso8601(self):
+        s = 'P1YT1S'
+        oyos = pyru.UnitsParser(s).asPython()
+        assert oyos._value == s, f'{oyos._value} != {s}'
+
 
 class TestPickle(unittest.TestCase):
 

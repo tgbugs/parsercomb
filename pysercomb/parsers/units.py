@@ -344,18 +344,17 @@ def make_unit_parser(units_path=None, dicts=None):
                         for comb in combs]
     _tp_time = COMPOSE(_dur_T, _p_time)
     _p_datetime = JOINT(_p_date, _tp_time, join=True)
-    iso8601duration = BIND(
-        COMPOSE(_dur_P,
-                # AT_MOST_ONE doesn't quite work due to inconsistent return
-                # values TODO need a construct doesn't require a full reparse of
-                # the date without leaving a hole in the result
-                # OR(_tp_time, ANDTHEN(_p_date, AT_MOST_ONE(_tp_time)))
-                OR(_tp_time,
-                   _p_datetime,
-                   _p_date)),
-        # returns functions accepting a starting time and an
-        # ending time
-        lambda v: RETURN(('iso8601-duration', *v)))
+    iso8601duration = COMPOSE(
+        _dur_P,
+        # these sort into different functions because durations that
+        # include dates are invariants while time alone is a parameter
+        # this helps with equality checking among other things
+        OR(BIND(_tp_time,
+                lambda v: RETURN(('iso8601-duration-time', *v))),
+           BIND(_p_datetime,
+                lambda v: RETURN(('iso8601-duration-datetime', *v))),
+           BIND(_p_date,
+                lambda v: RETURN(('iso8601-duration-date', *v))),))
 
     pH = RETVAL(COMP('pH'), BOX("'pH"))
     post_natal_day = RETVAL(COMP('P'), BOX(('quote', 'postnatal-days')))  # FIXME note that in our unit hierarchy this is a subclass of days

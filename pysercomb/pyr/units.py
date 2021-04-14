@@ -1104,6 +1104,94 @@ class Approximately(Oper):
         return self < other or self == other
 
 
+class Iso8601Duration(intf.AJ):
+    """ There is no easy way to work with these, these durations are in
+        many cases invariants and NOT parameters because the duration of
+        the components of a date (day, month, year) are variable depending
+        on the exact start time. XXX TODO It might be worth considering
+        parsing P and PT differently as a result, because PT durations are
+        always of known duration, whereas the duration of P is not. Basically
+        date intervals are invariants, time intervals are parameters, and
+        datetime intervals are also invariants with some potentially weird
+        behavior depending on the exact order in which the component durations
+        are resolved. """
+
+    _order = ('year',
+              'month',
+              'day',
+              'hour',
+              'minute',
+              'second',)
+
+    _isoletter = {'year': 'Y',
+                  'month': 'M',
+                  'day': 'D',
+                  'hour': 'H',
+                  'minute': 'M',
+                  'second': 'S',}
+
+    def __init__(self, *quantities, prov='TODO'):
+        self.quantities = quantities
+        self.prov = prov
+
+    def _value_qs(self):
+        def key(q):
+            su = str(q.units)
+            if su in self._order:
+                return 0, self._order.index(su)
+            else:
+                # FIXME XXX should probably be an error
+                return 1, su
+
+        first_time = True
+        def mak(q):
+            su = str(q.units)
+            out = f'{q.magnitude}{self._isoletter[su]}'
+            nonlocal first_time
+            if first_time and su in ('hour', 'minute', 'second'):
+                first_time = False
+                return 'T' + out
+
+            return out
+
+        return 'P' + ''.join(
+            [mak(q) for q in sorted(self.quantities, key=key)])
+
+    @property
+    def _value(self):
+        value = self._value_qs()
+        return value
+
+
+class Iso8601DurationTime(Iso8601Duration):
+
+    _type = 'iso8601-duration-time'
+    tag = _type
+
+    def __init__(self, *quantities):
+        super().__init__(*quantities)
+        self.duration = sum(quantities)
+
+
+class Iso8601DurationDate(Iso8601Duration):
+
+    _type = 'iso8601-duration-date'
+    tag = _type
+
+    def from_beg(self, datetime_start):
+        # XXX FIXME yeah, P and PT should be handled separately
+        raise NotImplementedError('TODO')
+
+    def from_end(self, datetime_end):
+        raise NotImplementedError('TODO')
+
+
+class Iso8601DurationDatetime(Iso8601DurationDate):
+
+    _type = 'iso8601-duration-datetime'
+    tag = _type
+
+
 class Quote(SExpr):
     pass
 
@@ -1283,6 +1371,15 @@ class Interpreter:
 
     def rest(self, expression):
         return ('rest', expression)
+
+    def iso8601_duration_time(self, *quantities):
+        return Iso8601DurationTime(*quantities)
+
+    def iso8601_duration_datetime(self, *quantities):
+        return Iso8601DurationDatetime(*quantities)
+
+    def iso8601_duration_date(self, *quantities):
+        return Iso8601DurationDate(*quantities)
 
 
 macro = MacroDecorator()
