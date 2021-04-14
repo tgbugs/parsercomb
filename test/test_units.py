@@ -80,7 +80,7 @@ class TestForms(unittest.TestCase):
                 == ('param:quantity', 14,
                     ('param:prefix-unit', ('quote', 'postnatal-days')))), 'postnatal_day failed'
         assert (parameter_expression('P14D')[1]
-                == ('iso8601-duration',
+                == ('iso8601-duration-date',
                     ('param:quantity', 14,
                      ('param:unit', ('quote', 'days'))))), 'iso8601duration failed'
 
