@@ -104,3 +104,7 @@ class AJ:
 
         # TODO nest children in the jsonld and then hope it flattens?
         return out
+
+    def __str__(self):
+        """ you proably shouldn't use this ... """
+        return str(self._value)
