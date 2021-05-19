@@ -1,3 +1,4 @@
+import copy
 import pickle
 import pprint
 import unittest
@@ -340,3 +341,9 @@ class TestPickle(unittest.TestCase):
     def test_parser_string(self):
         t = pyru.RacketParser('(+ 1 2)')
         self._doit(t)
+
+
+class TestCopy(TestPickle):
+    def _doit(self, thing):
+        thing_prime = copy.deepcopy(thing)
+        assert thing_prime == thing
