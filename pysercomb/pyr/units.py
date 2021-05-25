@@ -5,7 +5,7 @@ import pprint
 import operator
 import itertools
 from enum import Enum
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 from pathlib import Path
 from numbers import Number
 from functools import reduce
@@ -188,6 +188,11 @@ class _Quant(intf.Quantity, ur.Quantity):
         except KeyError:
             # support old naming convention
             return cls(json['value'], json['unit'])
+        except ValueError as e:
+            if '%' in json['units']:
+                return cls(json['magnitude'], unquote(json['units']))
+            else:
+                raise e
 
     def asRdf(self, subject, rdftype=None):
         """ to asRdf the normalized units use q.to_base_units().asRdf(s)"""
