@@ -35,6 +35,7 @@ except ImportError:
 
 
 ur = pint.UnitRegistry()
+ur.preprocessors.append(lambda s: s.replace('%', 'percent'))
 ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
 ur.default_system = 'mgs'  # SNAAAKKEEEEE system
 pint.set_application_registry(ur)
