@@ -2201,7 +2201,9 @@ class Term(intf.AJ):
     def asJson(self):
         if self._OntTerm is None:
             breakpoint()
-        term = self._OntTerm(self.curie, label=self.label)
+        # XXX hits many cases where the curie does not map e.g. asp:
+        l = self.label if self.label else None
+        term = self._OntTerm(self.curie, label=l)
         out = term.asDict()
         out['original'] = self.original
         return out
@@ -2220,11 +2222,11 @@ class Term(intf.AJ):
                 self.curie == other.curie)
 
     def __lt__(self, other):
-        if self.label is None:
+        if self.label is None or self.label == False:
             return True
 
         if type(self) == type(other):
-            if other.label is None:
+            if other.label is None or other.label == False:
                 return False
 
             return self.label < other.label
@@ -2234,11 +2236,11 @@ class Term(intf.AJ):
             return self.__class__.__name__ < other.__class__.__name__
 
     def __gt__(self, other):
-        if self.label is None:
+        if self.label is None or self.label == False:
             return False
 
         if type(self) == type(other):
-            if other.label is None:
+            if other.label is None or other.label == False:
                 return True
 
             return self.label > other.label
