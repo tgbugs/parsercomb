@@ -85,6 +85,10 @@ class AJ:
         else:
             out['ast_value'] = value
 
+        if 'raw_value' not in out and hasattr(value, 'original'):
+            # lift original values back to their original position in the ast
+            out['raw_value'] = {'@value': value.original}
+
         if self.prov and hasattr(self.prov, 'id'):  # FIXME sigh assumptions about prov
             uris = {
                 'uri_human_context': self.prov.shareLink,

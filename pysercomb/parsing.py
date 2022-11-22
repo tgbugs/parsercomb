@@ -377,7 +377,8 @@ whitespace1 = MANY1(whitespace_atom)  # FIXME this is broken to negation? (extre
 CROSS = b'\xc3\x97'.decode()
 cross = COMP(CROSS)
 x = COMP('x')
-by = OR(cross, x)
+X = COMP('X')
+by = OR(cross, x, X)
 
 # booleans
 _boollookup = {

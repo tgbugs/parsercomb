@@ -2089,9 +2089,6 @@ class Aspect(intf.AJ):
         if isinstance(self.name, Term):
             return self.name
 
-        elif ' ' not in self.name and self.name:
-            return 'aspect-raw:' + self.name  # TODO FIXME normalized and prefixed?
-
         else:
             return self.name
 
@@ -2207,6 +2204,13 @@ class Term(intf.AJ):
         out = term.asDict()
         out['original'] = self.original
         return out
+
+    @property
+    def _value(self):
+        """ on the off chance that __str__ is called """
+        ori = f' #:original {self.original}' if self.original else ''
+        label = f' {json.dumps(self.label)}' if self.label else ' #f'
+        return f'(term {self.curie}{label}{ori})'
 
     def __init__(self, curie, label, original):
         self.curie = curie
