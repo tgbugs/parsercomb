@@ -87,6 +87,16 @@ class TestForms(unittest.TestCase):
 
 class TestUnit(unittest.TestCase):
 
+    def test_mmHg(self):
+        expect = (True, ('param:unit', ('quote', 'millimeter-hg')), '')
+        assert unit('mmHg') == expect, 'mmHgf'
+
+    def test_kg_Kg(self):
+        expect = (True, ('param:unit', ('quote', 'grams'), ('quote', 'kilo')), '')
+        assert unit('kg') == expect, 'kgf'
+        # if you can't get your SI prefixes correct I can't help you
+        assert unit('Kg') == (True, ('param:unit', ('quote', 'kelvin')), 'g'), 'Kgf'
+
     def test_siprefix(self):
         assert debug_dict['siprefix']('milli') == (True, ('quote', 'milli'), ''), 'oops'
         assert debug_dict['siprefix']('deci') == (True, ('quote', 'deci'), ''), 'oops'

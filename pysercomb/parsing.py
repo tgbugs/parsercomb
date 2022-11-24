@@ -357,6 +357,7 @@ HYPHEN = b'\xe2\x80\x90'.decode()  # Y U DO DIS unicode 2010
 EN_DASH = b'\xe2\x80\x93'.decode()
 MINUS_SIGN = b'\xe2\x88\x92'.decode()  # HAH CAUGHT YOU aka u2212
 HYPHEN_MINUS = b'\x2d'.decode()  # yes, the thing that most keyboards have
+_raw_dash_things = HYPHEN, EN_DASH, MINUS_SIGN, HYPHEN_MINUS
 hyphen = COMP(HYPHEN)
 minus_sign = COMP(MINUS_SIGN)
 en_dash = COMP(EN_DASH)

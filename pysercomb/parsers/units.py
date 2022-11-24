@@ -281,9 +281,13 @@ def make_unit_parser(units_path=None, dicts=None):
 
     _C_for_temp = COMP('C')
     C_for_temp = RETVAL(_C_for_temp, BOX(_silookup['degrees-celsius']))
-    temp_for_biology = JOINT(num, C_for_temp, join=False)
+    mmHg = BIND(OR(COMP('mmHg'), COMP('mm Hg')), (lambda _: RETURN(('quote', 'millimeter-hg'))))  # FIXME move to data files
+    RCF = BIND(COMP('RCF'), (lambda _: RETURN(_implookup['RCF'])))  # since ronna R broke all the things
+    temp_for_biology = JOINT(num, C_for_temp, join=False)  # XXX not used
 
-    unit_atom = param('unit')(BIND(OR(JOINT(siprefix, siunit, join=False),
+    manual_unit = OR(mmHg, RCF)
+    unit_atom = param('unit')(BIND(OR(BIND(manual_unit, RETBOX),
+                                      JOINT(siprefix, siunit, join=False),
                                       BIND(impunit, RETBOX),  # FIXME R RCF collision
                                       BIND(siunit, RETBOX)),  # merge just units?
                                    FLOP))
