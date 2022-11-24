@@ -133,6 +133,35 @@ class TestUnit(unittest.TestCase):
         msg = '% failed to parse'
         assert parameter_expression('0.3%')[1] == ('param:quantity', 0.3, ('param:unit', ('quote', 'percent'))), msg
 
+    def test_exp_vs_range(self):
+        # range is fighting with exp_short
+        # There is no good solution at this stage of the pipeline.
+        # The issue is that a range separator without spaces can be parsed as a negative exponent.
+        # Some authors like to put 1%-2% doubling the percent unit.
+        # Percent does not combine with exp_short, which we can fix at the cost of some complexity,
+        # but the underlying issue remains, e.g. with the 1kg-2kg example below.
+        # One possible solution is to ensure that exp_short is not followed by another unit, which
+        # is not viable because kg-1m is technically a valid unit, if horribly mangled I think.
+        # Thus the best way forward is to check to see if there is a rest in the calling context
+        # and if there is and there is a dash_thing in the input then should reparse with the
+        # dash_thing surrounded by spaces, in which case the range will parse correctly and
+        # there should be no rest value.
+        o0 = unit('%-1')
+        parsing._dobreak = True
+        o1 = parameter_expression('1%-1')
+        o5 = parameter_expression('1%-1%')
+
+        k0 = parameter_expression('1kg-2kg')
+        k1 = parameter_expression('1kg - 2kg')
+
+        m0 = parameter_expression('1mm3-2mm3')
+        m1 = parameter_expression('1mm3 - 2mm3')
+
+        o2 = parameter_expression('1%+1')
+        o3 = parameter_expression('1%*1')
+        o4 = parameter_expression('1%/1')
+        parsing._dobreak = False
+
     def test_molar_space(self):
         out = pyru.UnitsParser(' 0.1M')
         assert out == ('param:quantity', 0.1, ('param:unit', ('quote', 'molarity')))

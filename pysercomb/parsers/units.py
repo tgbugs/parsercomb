@@ -265,9 +265,9 @@ def make_unit_parser(units_path=None, dicts=None):
                                       BIND(siunit, RETBOX)),  # merge just units?
                                    FLOP))
 
-    maybe_exponent = LEXEME(AT_MOST_ONE(exponent))
+    maybe_exponent = LEXEME(AT_MOST_ONE(exponent))  # XXX must be AT_MOST_ONE, but issues with ranges, see test_exp_vs_range
 
-    exp_short = BIND(JOINT(SKIP(COMPOSE(spaces, unit_atom),
+    exp_short = BIND(JOINT(SKIP(COMPOSE(spaces, unit_atom),  # XXX TODO FIXME need unit_atom_not_dimensionless
                                 COMPOSE(spaces, maybe_exponent)),
                            int_),
                      lambda v: RETURN(('^', *v)))

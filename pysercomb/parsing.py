@@ -36,6 +36,8 @@ __all__ = [
     'flatten',
     'flatten1',
     'noop',
+    'breakf',
+    'BREAK',
 
     'spaces',
     'newline',
@@ -248,6 +250,14 @@ def SKIP(func1, func2):
 def NOOP(func):
     return (lambda p: (True, None, p))
 
+_dobreak = False
+breakf = (lambda p: (False, breakpoint() if _dobreak else None, p))
+def BREAK(func):  # break on entry
+    def f(p):
+        if _dobreak:
+            breakpoint()
+        return func(p)
+    return f
 
 def comp(p, val, lv):
     if p:
