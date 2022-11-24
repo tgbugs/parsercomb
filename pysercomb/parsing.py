@@ -335,7 +335,7 @@ def RETVAL(func, val):
     return COMPOSE(func, RETURN(val))
 
 def make_funcs(inpt, lookuptable):
-    for token in sorted(set(inpt), key=lambda a: -len(a)):  # sort to simulate right associativity (ie da recognized even if d a token)
+    for token in sorted(set(inpt), key=lambda a: (-len(a), a)):  # sort to simulate right associativity (ie da recognized even if d a token)
         def lookup_function(v):
             return RETURN(lookuptable[v])
         yield BIND(COMP(token), lookup_function)

@@ -245,9 +245,12 @@ def make_unit_parser(units_path=None, dicts=None):
                                     units_dimensionless,
                                     ([v, v] for k, v in units_imp),
                                     ([v, v] for k, v in units_dimensionless))}
-    _siplookup = {k: ('quote', v) for k, v in prefixes_si}
+    _siplookup = {k: ('quote', v) for k, v in chain(prefixes_si,
+                                                    ([v, v] for k, v in prefixes_si))}
 
-    siprefix = OR(*make_funcs(coln(0, prefixes_si), _siplookup))
+    siprefix = OR(*make_funcs(chain(coln(0, prefixes_si),
+                                    coln(1, prefixes_si)),
+                              _siplookup))
     siunit = OR(*make_funcs(chain(coln(0, units_si + units_extra), # need both here to avoid collisions in unit_atom slower but worth it?
                                   coln(1, units_si + units_extra)),
                             _silookup))
@@ -488,6 +491,7 @@ def make_unit_parser(units_path=None, dicts=None):
                   'num_thing': num_thing,
                   'dimensions_no_math': dimensions_no_math,  # TODO
                   'iso8601duration': iso8601duration,
+                  'siprefix': siprefix,
                  }
 
     return parameter_expression, quantity, unit, unit_atom, debug_dict

@@ -87,17 +87,29 @@ class TestForms(unittest.TestCase):
 
 class TestUnit(unittest.TestCase):
 
+    def test_siprefix(self):
+        assert debug_dict['siprefix']('milli') == (True, ('quote', 'milli'), ''), 'oops'
+        assert debug_dict['siprefix']('deci') == (True, ('quote', 'deci'), ''), 'oops'
+
+    def test_mm(self):
+        expect = (True, ('param:unit', ('quote', 'meters'), ('quote', 'milli')), '')
+        assert unit('mm') == expect, 'mmf'
+        assert unit('mmeters') == expect, 'mmf'
+        assert unit('millimeters') == expect, 'mmf'
+
     def test_becq(self):
         """ plural issues """
-        assert unit('becquerels') == (True, ('param:unit', ('quote', 'becquerels')), ''), 'oof'
-        assert unit('becquerel') == (True, ('param:unit', ('quote', 'becquerels')), ''), 'oof'
-        assert unit('Bq') == (True, ('param:unit', ('quote', 'becquerels')), ''), 'oof'
+        expect = (True, ('param:unit', ('quote', 'becquerels')), '')
+        assert unit('becquerels') == expect, 'becqf'
+        assert unit('becquerel') == expect, 'becqf'
+        assert unit('Bq') == expect, 'becqf'
 
     def test_minutes(self):
         """ make sure we don't parse min -> milli inches """
-        assert unit('minutes') == (True, ('param:unit', ('quote', 'minutes')), ''), 'minutes did not parse to minutes'
-        assert unit('minute') == (True, ('param:unit', ('quote', 'minutes')), ''), 'minute did not parse to minutes'
-        assert unit('min') == (True, ('param:unit', ('quote', 'minutes')), ''), 'min did not parse to minutes'
+        expect = (True, ('param:unit', ('quote', 'minutes')), '')
+        assert unit('minutes') == expect, 'minutes did not parse to minutes'
+        assert unit('minute') == expect, 'minute did not parse to minutes'
+        assert unit('min') == expect, 'min did not parse to minutes'
 
     def test_inches(self):
         assert unit('in') == (True, ('param:unit', ('quote', 'inches')), ''), 'in did not parse to inches'
@@ -140,6 +152,12 @@ class TestUnit(unittest.TestCase):
     def test_percent(self):
         msg = '% failed to parse'
         assert parameter_expression('0.3%')[1] == ('param:quantity', 0.3, ('param:unit', ('quote', 'percent'))), msg
+
+    def test_mm_range(self):
+        expect = (True, ('param:quantity', ('param:expr', ('range', 5, 6)), ('param:unit', ('quote', 'meters'), ('quote', 'milli'))), '')
+        assert parameter_expression('5-6mm') == expect, 'oops'
+        assert parameter_expression('5-6 mm') == expect, 'oops'
+        assert parameter_expression('5-6 millimeters') == expect, 'oops'
 
     def test_exp_vs_range(self):
         # range is fighting with exp_short
