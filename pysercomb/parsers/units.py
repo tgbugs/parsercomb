@@ -1,8 +1,11 @@
 import numbers
 from itertools import chain
+from pysercomb import parsing
 from pysercomb.utils import coln, log
 from pysercomb.parsing import *
 from pysercomb.parsers.racket import racket_doc, racket_module
+
+totally_not_degrees = 'º◦˚⁰'  # come join the merry fools!
 
 
 def LEXEME(func):
@@ -186,8 +189,8 @@ plus_or_minus = RETVAL(OR(plus_or_minus_symbol, plus_or_minus_pair, plus_over_mi
 
 addition = COMP('+')
 subtraction = dash_thing
-division = COMP('/')
-multiplication = RETVAL(OR(COMP('*'), by), '*')  # ok as long as dimensions are specced with units 1 mm x 1 mm
+division = OR(COMP('/'), RETVAL(COMP('per'), '/'))  # also appears as x a/an time-unit, or x per something XXX TODO log normalizations
+multiplication = RETVAL(OR(COMP('*'), by, parsing.dot), '*')  # ok as long as dimensions are specced with units 1 mm x 1 mm  # XXX FIXME by now includes X
 # there is actually no way to tell the difference between
 # 10 x 20 mm as 10 mm x 20 mm and 10 x 20 mm = 200 mm
 math_op = OR(addition, subtraction, division, multiplication, exponent)  # FIXME subtraction is going to be a pain
@@ -216,7 +219,8 @@ def get_unit_dicts(units_path):
 
 
 DEGREES_UNDERLINE = b'\xc2\xba'.decode()  # º sometimes pdfs misencode these
-DEGREES_FEAR = b'\xe2\x97\xa6' # this thing is scary and I have no idea what it is or why it wont change color ◦
+DEGREES_FEAR = b'\xe2\x97\xa6'  # this thing is scary and I have no idea what it is or why it wont change color ◦
+RING_ABOVE = b'\xcb\x9a'  # u02da apparently this thing can creep in as a degrees symbol sometimes as well ??!?
 
 def hms(h, m, s):
     """ hours minutes seconds to seconds """
@@ -262,14 +266,20 @@ def make_unit_parser(units_path=None, dicts=None):
     def parOR(func): return OR(func, parenthized(func))
 
     to = COMP('to')
-    range_indicator = RETVAL(OR(thing_accepted_as_a_dash, to), 'range')
+    dtod = COMP('-to-')  # not matching ...
+    range_indicator = RETVAL(OR(dtod, thing_accepted_as_a_dash, to), 'range')
     # FIXME range vs minus ...
     infix_operator = OR(plus_or_minus, range_indicator, math_op)  # colon? doesn't really operate on quantities, note that * and / do not interfere with the unit parsing because that takes precedence
 
-    def num_expression(thing): return OR(param('expr')(parOR(_num_expression)), parOR(num))(thing)
-    def num_expression_inner(thing): return OR(parOR(_num_expression), num)(thing)
+    def num_expression(thing): return OR(param('expr')(parOR(_num_expression)), parOR(OR(num_commas, num)))(thing)
+    def num_expression_inner(thing): return OR(parOR(_num_expression), OR(num_commas, num))(thing)
 
-    num_thing = OR(parOR(num), BIND(parenthized(num_expression_inner), flatten1))
+    _dig = BIND(parsing.TIMES(digit, 1, 3), lambda i: RETURN(''.join(i)))
+    _3dig = BIND(parsing.TIMES(digit, 3, 3), lambda i: RETURN(''.join(i)))
+    num_commas = BIND(JOINT(_dig, MANY1(COMPOSE(COMP(','), _3dig)), join=True),
+                      lambda i: RETURN(int(''.join(i))))
+
+    num_thing = OR(parOR(OR(num_commas, num)), BIND(parenthized(num_expression_inner), flatten1))
     num_suffix = JOINT(COMPOSE(spaces, infix_operator),
                        COMPOSE(spaces, num_thing))
 
@@ -279,14 +289,24 @@ def make_unit_parser(units_path=None, dicts=None):
                                 flatten),
                            op_order)
 
+    # biology specific extensions
     _C_for_temp = COMP('C')
     C_for_temp = RETVAL(_C_for_temp, BOX(_silookup['degrees-celsius']))
-    mmHg = BIND(OR(COMP('mmHg'), COMP('mm Hg')), (lambda _: RETURN(('quote', 'millimeter-hg'))))  # FIXME move to data files
-    RCF = BIND(COMP('RCF'), (lambda _: RETURN(_implookup['RCF'])))  # since ronna R broke all the things
     temp_for_biology = JOINT(num, C_for_temp, join=False)  # XXX not used
+    mmHg = BIND(OR(COMP('mmHg'), COMP('mm Hg')), (lambda _: RETURN((('quote', 'millimeter-hg'),))))  # FIXME move to data files
+    RCF = BIND(OR(COMP('RCF'), COMP('xg')), (lambda _: RETURN((_implookup['RCF'],))))  # since ronna R broke all the things  XXX xg lacks priority due to fold being in suffix unit no space
+    dpi = BIND(COMP('dpi'), (lambda _: RETURN((('quote', 'pixels-per-inch'),))))  # usually uppercase
+    micron = BIND(COMP('micron'), (lambda _: RETURN((('quote', 'micro'), ('quote', 'meters')))))
+    def sigh(p): return parsing.oper(p, lambda s: s in totally_not_degrees)
+    degc_mess = BIND(OR(COMP('degrees Celsius'),
+                        COMP('degrees C'),
+                        COMP('o celcius'),
+                        COMP('oC'),
+                        JOINT(sigh, _C_for_temp)),
+                     (lambda _: RETURN((_silookup['~oC'],))))
 
-    manual_unit = OR(mmHg, RCF)
-    unit_atom = param('unit')(BIND(OR(BIND(manual_unit, RETBOX),
+    manual_unit = OR(mmHg, RCF, degc_mess, micron, dpi)
+    unit_atom = param('unit')(BIND(OR(manual_unit,
                                       JOINT(siprefix, siunit, join=False),
                                       BIND(impunit, RETBOX),  # FIXME R RCF collision
                                       BIND(siunit, RETBOX)),  # merge just units?
@@ -414,7 +434,7 @@ def make_unit_parser(units_path=None, dicts=None):
     quantity_with_unit = param('quantity')(OR(prefix_quantity, suffix_quantity_with_unit))
 
     # quantity expressions that require no numerical expressions, only numbers
-    suffix_quantity_num_only = JOINT(num,
+    suffix_quantity_num_only = JOINT(OR(num_commas, num),
                                      OR(suffix_unit_no_space,
                                         COMPOSE(spaces,
                                                 AT_MOST_ONE(suffix_unit, fail=False))))

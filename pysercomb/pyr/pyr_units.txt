@@ -14,6 +14,7 @@ percent = 0.01 * count = %
 osmole = [substance_particles] = Osm  # this is quite complicated to calculate from first principles since it is actual particles
 osmolarity = Osm / liter
 @alias molar = molarity
+@alias millimeter_Hg = millimeters_hg
 
 # https://en.wikipedia.org/wiki/French_catheter_scale  Fg = diameter mm * 3
 # Fr defaults to Franklin which aka statcoulomb

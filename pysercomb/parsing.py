@@ -354,7 +354,7 @@ def EXACTLY_ONE(func, fail=True): return BIND(TIMES(func, 1, 1, fail), RETURNBOX
 
 # I hate the people who felt the need to make different type blocks for this stuff in 1673
 HYPHEN = b'\xe2\x80\x90'.decode()  # Y U DO DIS unicode 2010
-EN_DASH = b'\xe2\x80\x93'.decode()
+EN_DASH = b'\xe2\x80\x93'.decode()  # aka u2013
 MINUS_SIGN = b'\xe2\x88\x92'.decode()  # HAH CAUGHT YOU aka u2212
 HYPHEN_MINUS = b'\x2d'.decode()  # yes, the thing that most keyboards have
 _raw_dash_things = HYPHEN, EN_DASH, MINUS_SIGN, HYPHEN_MINUS
@@ -389,7 +389,7 @@ CROSS = b'\xc3\x97'.decode()
 cross = COMP(CROSS)
 x = COMP('x')
 X = COMP('X')
-by = OR(cross, x, X)
+by = OR(cross, x, X)  # XXX 2x/day -> twice per day oof
 
 # booleans
 _boollookup = {
@@ -404,6 +404,7 @@ boolean = OR(bool_word_lower, bool_word_cap)
 # number words
 _numlookup = {
     'zero': 0,
+    #'half': 0.5,  # better fuzzy
     'one': 1,
     'two': 2,
     'three': 3,
@@ -424,6 +425,8 @@ _numlookup = {
     'ninety': 90,
     # going beyond this requires writing a look-ahead parser
     # for natural language numbers, which is out of scope atm
+    'once': 1,
+    'twice': 2,
 }
 num_word_lower = OR(*make_funcs(_numlookup, _numlookup))
 def num_word_cap(p): return num_word_lower(p.lower())

@@ -6,6 +6,29 @@ from pysercomb.pyr import units as pyru
 
 
 class TestForms(unittest.TestCase):
+
+    def test_weird(self):  # TODO
+        twice = parameter_expression('2x/day')
+
+        eq = parameter_expression('mEq/mL')  # was just missing equivalents
+
+        w0 = parameter_expression('10-to-12')
+        w1 = parameter_expression('10 -to- 12')
+        w2 = parameter_expression('10 - 12')
+        w3 = parameter_expression('10 mg·kg−1·h−1')  # dot for multiplication
+        w4 = parameter_expression('0.4V ~ 1.5V')  # infix approx
+
+        w5 = parameter_expression('10 per day')
+        w6 = parameter_expression('10 / day')
+        w7 = parameter_expression('10per day')
+        w8 = parameter_expression('10/ day')
+
+        n0 = parameter_expression('1,2,3')  # not valid for commas
+        n1 = parameter_expression('1000,000')  # not valid for commas
+        n2 = parameter_expression('100,00')
+        assert parameter_expression('1,000') == (True, ('param:quantity', 1000, ()), '')
+        assert parameter_expression('100,000') == (True, ('param:quantity', 100000, ()), '')
+
     def test_ratio(self):
         assert parameter_expression('1:1000')[1] == ('param:ratio', 1, 1000), 'ratio failed'
         assert parameter_expression('2:1')[1] == ('param:ratio', 2, 1), 'ratio failed'
@@ -86,6 +109,9 @@ class TestForms(unittest.TestCase):
 
 
 class TestUnit(unittest.TestCase):
+
+    def test_micron(self):
+        assert unit('micron') == unit('um'), 'micron fail'
 
     def test_mmHg(self):
         expect = (True, ('param:unit', ('quote', 'millimeter-hg')), '')
