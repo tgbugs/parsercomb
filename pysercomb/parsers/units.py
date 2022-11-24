@@ -293,7 +293,7 @@ def make_unit_parser(units_path=None, dicts=None):
     _C_for_temp = COMP('C')
     C_for_temp = RETVAL(_C_for_temp, BOX(_silookup['degrees-celsius']))
     temp_for_biology = JOINT(num, C_for_temp, join=False)  # XXX not used
-    mmHg = BIND(OR(COMP('mmHg'), COMP('mm Hg')), (lambda _: RETURN((('quote', 'millimeter-hg'),))))  # FIXME move to data files
+    mmHg = BIND(OR(COMP('mmHg'), COMP('mm Hg')), (lambda _: RETURN((('quote', 'millimeters-hg'),))))  # FIXME move to data files
     RCF = BIND(OR(COMP('RCF'), COMP('xg')), (lambda _: RETURN((_implookup['RCF'],))))  # since ronna R broke all the things  XXX xg lacks priority due to fold being in suffix unit no space
     dpi = BIND(COMP('dpi'), (lambda _: RETURN((('quote', 'pixels-per-inch'),))))  # usually uppercase
     micron = BIND(COMP('micron'), (lambda _: RETURN((('quote', 'micro'), ('quote', 'meters')))))

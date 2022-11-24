@@ -40,6 +40,7 @@ ur.load_definitions((Path(__file__).parent / 'pyr_units.txt').as_posix())
 ur.default_system = 'mgs'  # SNAAAKKEEEEE system
 pint.set_application_registry(ur)
 
+
 class __Monkey:
 
     def __hash__(self):
@@ -131,6 +132,11 @@ class _Unit(intf.Unit, ur.Unit):
             try:
                 if self.dimensionality == '[time]':
                     # don't rewrite time units here
+                    return
+                if self.dimensionality == '[temperature]':
+                    # don't rewrite temp due to issues with
+                    # absolute units being non multiplicative
+                    # and having to use e.g. delta_degC
                     return
 
                 deru = [u for u in self.compatible_units()
@@ -849,6 +855,9 @@ class Range(intf.Range, Oper):
         else:
             raise NotImplementedError
 
+    def _apply_nonmult_units(self, unit):
+        return self.__class__(ur.Quantity(self.left, unit), ur.Quantity(self.right, unit))
+
     def __str__(self):
         return f'{self.left}{self.op}{self.right}'
 
@@ -1477,7 +1486,13 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
         if unit_value is None:
             unit_value = ur.dimensionless
 
-        return value * unit_value  # ah, just set it to 1 for no units ... fun
+        if unit_value.dimensionality == '[temperature]':
+            if isinstance(value, Range):
+                return value._apply_nonmult_units(unit_value)
+            else:
+                return ur.Quantity(value, unit_value)  # ah, just set it to 1 for no units ... fun
+        else:
+            return value * unit_value  # ah, just set it to 1 for no units ... fun
 
     def plus(self, *operands):
         first, *rest = operands

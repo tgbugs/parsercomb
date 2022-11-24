@@ -9,10 +9,12 @@ fold = [] = x
 # it is more a multiplcative closure over magnitude (λ (v) (* v magnitude))
 numerical_aperture = [] = NA
 #bel = []  # pint has this now
-degrees_celsius = degC = degrees-celsius
+#degrees_celsius = degC = degrees-celsius  # using @alias triggers nonmult issues
+@alias degC = degrees_celsius = degrees-celsius
 percent = 0.01 * count = %
 osmole = [substance_particles] = Osm  # this is quite complicated to calculate from first principles since it is actual particles
 osmolarity = Osm / liter
+equivalents = [] = equiv  # there is a definition for this, just missing atm
 @alias molar = molarity
 @alias millimeter_Hg = millimeters_hg
 
@@ -31,7 +33,7 @@ birmingham_gauge = [] = G  # G defaults to gauss
 25G = 0.5144 * mm
 27G = 0.4128 * mm
 
-degrees_fahrenheit = degF = degrees-fahrenheit
+@alias degF = degrees_fahrenheit = degrees-fahrenheit
 
 # for U -> kat see
 # Wharton, Christopher W.; Eisenthal, Robert (2013), Molecular Enzymology,
