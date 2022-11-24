@@ -96,7 +96,7 @@ class AJ:
                 'uri_api': 'https://hypothes.is/api/annotations/' + self.prov.id,
             }
             out.update(uris)
-            if self.__class__.__name__ == 'Parameter':  # FIXME sigh TODO maybe Invariant too?
+            if self.__class__.__name__ in ('Parameter', 'Invariant'):  # FIXME sigh
                 out['raw_value'] = {'@value': self.prov._value()}
                 if (self.rest and
                     (isinstance(self.rest[0], list) or isinstance(self.rest[0], tuple)) and
