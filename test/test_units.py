@@ -87,8 +87,16 @@ class TestForms(unittest.TestCase):
 
 class TestUnit(unittest.TestCase):
 
+    def test_becq(self):
+        """ plural issues """
+        assert unit('becquerels') == (True, ('param:unit', ('quote', 'becquerels')), ''), 'oof'
+        assert unit('becquerel') == (True, ('param:unit', ('quote', 'becquerels')), ''), 'oof'
+        assert unit('Bq') == (True, ('param:unit', ('quote', 'becquerels')), ''), 'oof'
+
     def test_minutes(self):
         """ make sure we don't parse min -> milli inches """
+        assert unit('minutes') == (True, ('param:unit', ('quote', 'minutes')), ''), 'minutes did not parse to minutes'
+        assert unit('minute') == (True, ('param:unit', ('quote', 'minutes')), ''), 'minute did not parse to minutes'
         assert unit('min') == (True, ('param:unit', ('quote', 'minutes')), ''), 'min did not parse to minutes'
 
     def test_inches(self):

@@ -22,6 +22,24 @@ def get_quoted_list(folderpath, filename):
     return out
 
 
+def fix_plurals(ql):
+    # XXX hack to deal with bad parsing of plurals
+    # this solution can induce nasty performance issues
+    # the correct solution is to build the parser so that
+    # the plural form is optional and there are shared prefixes
+    # this approach is quick and dirty so we don't worry about it
+
+    def fix(u):
+        if u == 'inches':
+            return 'inch'
+        else:
+            return u[:-1]
+
+    for k, v in ql.items():
+        more = tuple([(fix(u), u) for p, u in v if u.endswith('s') and len(u) > 2 and not u.endswith('celsius')])
+        ql[k] += more
+
+
 def op_order(return_value):
     order = 'plus-or-minus', 'range', '^', '/', '*', '+', '-'
     associative = '*', '+'
@@ -213,6 +231,8 @@ def make_unit_parser(units_path=None, dicts=None):
 
     gs = globals()
     for dict_ in dicts:
+        if [k for k in ['units_si', 'units_extra', 'units_imp'] if k in dict_]:
+            fix_plurals(dict_)
         gs.update(dict_)
 
     _silookup = {k: ('quote', v)
