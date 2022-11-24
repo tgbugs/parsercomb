@@ -96,6 +96,14 @@ class AJ:
                 'uri_api': 'https://hypothes.is/api/annotations/' + self.prov.id,
             }
             out.update(uris)
+            if self.__class__.__name__ == 'Parameter':  # FIXME sigh TODO maybe Invariant too?
+                out['raw_value'] = {'@value': self.prov._value()}
+                if (self.rest and
+                    (isinstance(self.rest[0], list) or isinstance(self.rest[0], tuple)) and
+                    self.rest[0] and
+                    self.rest[0][0] == "rest"):
+                    # TODO mark out as a whole as an error probably
+                    out['rest'] = self.rest[0][1]
 
         if hasattr(self, 'body'):
             if self.body:

@@ -130,10 +130,10 @@ class _Unit(intf.Unit, ur.Unit):
         """ return a derived unit if one exists for the current units """
         if self.dimensionality:
             try:
-                if self.dimensionality == '[time]':
+                if '[time]' in self.dimensionality:
                     # don't rewrite time units here
                     return
-                if self.dimensionality == '[temperature]':
+                elif '[temperature]' in self.dimensionality:
                     # don't rewrite temp due to issues with
                     # absolute units being non multiplicative
                     # and having to use e.g. delta_degC
