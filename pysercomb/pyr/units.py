@@ -1580,8 +1580,8 @@ class ParamParser(UnitsHelper, ImplFactoryHelper, Interpreter):
                 assert first.check(q.dimensionality)
 
             fu = first.units
-            return [fu * q.magnitude for q in quants]
-        
+            return [q.to(fu) for q in quants]
+
         return quants
 
     def range(self, left, right):
