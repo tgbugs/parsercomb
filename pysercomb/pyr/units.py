@@ -93,6 +93,13 @@ _deprecated_units = (
 )
 
 
+try:
+    _pintuc = pint.unit.UnitsContainer
+except AttributeError:
+    # horray for absolutely horribly maintenace practices
+    _pintuc = pint.util.UnitsContainer
+
+
 class _Unit(intf.Unit, ur.Unit):
 
     def format_babel(self, spec='', **kwspec):
@@ -101,9 +108,9 @@ class _Unit(intf.Unit, ur.Unit):
         if '~' in spec:
             #if self.dimensionless:
                 #return ''
-            units = pint.unit.UnitsContainer(dict((self._REGISTRY._get_symbol(key),
-                                                   value)
-                                                  for key, value in self._units.items()))
+            units = _pintuc(dict((self._REGISTRY._get_symbol(key),
+                                  value)
+                                 for key, value in self._units.items()))
             spec = spec.replace('~', '')
         else:
             units = self._units

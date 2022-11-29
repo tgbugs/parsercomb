@@ -114,7 +114,7 @@ class TestUnit(unittest.TestCase):
         assert unit('micron') == unit('um'), 'micron fail'
 
     def test_mmHg(self):
-        expect = (True, ('param:unit', ('quote', 'millimeter-hg')), '')
+        expect = (True, ('param:unit', ('quote', 'millimeters-hg')), '')
         assert unit('mmHg') == expect, 'mmHgf'
 
     def test_kg_Kg(self):

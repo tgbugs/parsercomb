@@ -26,12 +26,12 @@ french_gauge = 3 * mm = Fr = Fg
 # technically the dimensionality is 1 / [lenght] but since it is non-uniform
 # pint can't handle it without filling in the values explicitly I think
 birmingham_gauge = [] = G  # G defaults to gauss
-12G = 2.769 * mm
-18G = 1.270 * mm
-19G = 1.067 * mm
-20G = 0.9081 * mm
-25G = 0.5144 * mm
-27G = 0.4128 * mm
+_12G = 12G = 2.769 * mm
+_18G = 18G = 1.270 * mm
+_19G = 19G = 1.067 * mm
+_20G = 20G = 0.9081 * mm
+_25G = 25G = 0.5144 * mm
+_27G = 27G = 0.4128 * mm
 
 @alias degF = degrees_fahrenheit = degrees-fahrenheit
 
