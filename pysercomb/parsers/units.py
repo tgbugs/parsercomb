@@ -6,6 +6,7 @@ from pysercomb.parsing import *
 from pysercomb.parsers.racket import racket_doc, racket_module
 
 totally_not_degrees = 'º◦˚⁰'  # come join the merry fools!
+_superscript_zero = b'\xe2\x81\xb0'  # fails to read in a racket file on windows but not here ???
 
 
 def LEXEME(func):
