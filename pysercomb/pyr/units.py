@@ -117,6 +117,12 @@ class _Unit(intf.Unit, ur.Unit):
 
         return '%s' % (units.format_babel(spec, **kwspec))
 
+    @classmethod
+    def fromJson(cls, json):
+        # should be a string
+        # TODO unquote probably
+        return cls(json)
+
     def json(self, ld=True):
         # can't use asDerived in here, only
         # the quantity should do that
@@ -202,7 +208,7 @@ class _Quant(intf.Quantity, ur.Quantity):
         except KeyError:
             # support old naming convention
             return cls(json['value'], json['unit'])
-        except ValueError as e:
+        except (ValueError, pint.errors.UndefinedUnitError) as e:
             if '%' in json['units']:
                 return cls(json['magnitude'], unquote(json['units']))
             else:
@@ -2458,16 +2464,23 @@ class UnitsParser(UnitsHelper, ImplFactoryHelper, SExpr):  # FIXME this needs to
     _ParamParser = None
 
     ParseFailure = exc.ParseFailure
+    IncompleteParse = exc.IncompleteParse
 
     def __new__(cls, string_to_parse, sexp=None, rest_ok=True):
         if sexp is None:  # needed for copy to work happily
             success, sexp, rest = cls._parameter_expression(string_to_parse)
             if rest and not rest_ok:
                 # TODO try to failover to the pint parser for coverage
-                raise ValueError(f'Failed to parse suffix {rest}')
+                msg = f'Failed to parse suffix {rest!r} of {string_to_parse!r}'
+                raise cls.IncompleteParse(msg)
+        elif hasattr(sexp, '_rest'):
+            rest = sexp._rest
+        else:
+            rest = None
 
         self = super().__new__(cls, sexp)
         self._input = string_to_parse
+        self._rest = rest
         return self
 
     def __call__(self, string_to_parse):

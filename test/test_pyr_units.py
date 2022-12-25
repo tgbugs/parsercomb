@@ -342,8 +342,34 @@ class TestPickle(unittest.TestCase):
         t = pyru.RacketParser('(+ 1 2)')
         self._doit(t)
 
+    def test_month_n(self):
+        t = pyru.UnitsParser('4m 13d')
+        self._doit(t)
+
+    def test_dast(self):
+        t = pyru.UnitsParser('4 meter ** 13')
+        self._doit(t)
+
 
 class TestCopy(TestPickle):
     def _doit(self, thing):
         thing_prime = copy.deepcopy(thing)
         assert thing_prime == thing
+
+
+class TestJson(TestPickle):
+    def _doit(self, thing):
+        jthing = None
+        if hasattr(thing, 'json'):
+            jthing = thing
+        elif hasattr(thing, 'asPython'):
+            pything = thing.asPython()
+            if hasattr(pything, 'json'):
+                jthing = pything
+
+        if jthing:
+            j = jthing.json()
+            tv = jthing.__class__.fromJson(j)
+            assert tv == jthing
+        else:
+            pytest.skip(f'skipped due to no json method? {thing!r}')

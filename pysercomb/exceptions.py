@@ -8,3 +8,7 @@ class BadNotationError(PyrError):
 
 class ParseFailure(PyrError):
     """ we failed to parse an expression """
+
+
+class IncompleteParse(PyrError):
+    """ we failed to parse the entirety of the input """
