@@ -2223,12 +2223,20 @@ class Term(intf.AJ):
 
     _OntTerm = None
 
+    _term_cache = {}
+
     def asJson(self):
         if self._OntTerm is None:
             breakpoint()
         # XXX hits many cases where the curie does not map e.g. asp:
         l = self.label if self.label else None
-        term = self._OntTerm(self.curie, label=l)
+        if self.curie in self._term_cache:
+            log.log(9, f'cache hit for {self.curie}')
+            term = self._term_cache[self.curie]
+        else:
+            term = self._OntTerm(self.curie, label=l)
+            self._term_cache[self.curie] = term
+
         out = term.asDict()
         out['original'] = self.original
         return out
