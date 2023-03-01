@@ -151,6 +151,13 @@ class _Unit(intf.Unit, ur.Unit):
                     # absolute units being non multiplicative
                     # and having to use e.g. delta_degC
                     return
+                elif ('[mass]' in self.dimensionality and
+                      '[length]' in self.dimensionality and
+                      self.dimensionality['[mass]'] > 0 and
+                      self.dimensionality['[length]'] < 0 and
+                      [u for u in self.compatible_units() if u._name == 'water']):
+                    # EEEEEEEE density -> water and mercury as compatible units
+                    return
 
                 deru = [u for u in self.compatible_units()
                         if u._name not in _deprecated_units and

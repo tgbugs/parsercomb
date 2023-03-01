@@ -302,6 +302,12 @@ class TestUnits(unittest.TestCase):
         oyos = pyru.UnitsParser(s).asPython()
         assert oyos._value == s, f'{oyos._value} != {s}'
 
+    def test_not_water_density(self):
+        t = pyru.UnitsParser('5g/5ml')
+        p = t.asPython()
+        j = p.json()
+        assert j['units'] != 'water'
+
 
 class TestPickle(unittest.TestCase):
 
