@@ -30,6 +30,8 @@ try:
     from pyontutils.closed_namespaces import rdf, owl, rdfs
     xsd = rdflib.XSD
     OntCuries({'unit':str(unit)})
+    intf.ProtcurExpression._rdflib = rdflib
+    intf.ProtcurExpression._ns_rdf = rdf
 except ImportError:
     pass  # exception logged in rdftypes
 

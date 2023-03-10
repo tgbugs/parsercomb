@@ -137,6 +137,20 @@ class _Than(intf.ProtcurExpression):
         # FIXME prefix vs suffix quantities
         return dict(type=self.tag, value=self.right, unit=self.right.units.json())
 
+    def asRdf(self, subject):  # FIXME incomplete placeholder
+        #from pyontutils.namespaces import rdf, TEMP  # FIXME XXX EVIL
+        #yield subject, rdf.type, TEMP[self.tag]
+        # FIXME bnode probably
+        #if self.left:
+            #yield from self.left.asRdf(subject)
+        #yield from self.right.asRdf(subject)
+
+        # FIXME bad representation, TODO figure out how to correctly
+        # represent operators inside/for quantities
+        yield (subject,
+               self._ns_rdf.value,
+               self._rdflib.Literal(str(self)))
+
     @classmethod
     def fromJson(cls, json):
         assert json['type'] == cls.tag
