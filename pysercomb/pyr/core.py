@@ -138,18 +138,15 @@ class _Than(intf.ProtcurExpression):
         return dict(type=self.tag, value=self.right, unit=self.right.units.json())
 
     def asRdf(self, subject):  # FIXME incomplete placeholder
-        #from pyontutils.namespaces import rdf, TEMP  # FIXME XXX EVIL
-        #yield subject, rdf.type, TEMP[self.tag]
-        # FIXME bnode probably
-        #if self.left:
-            #yield from self.left.asRdf(subject)
-        #yield from self.right.asRdf(subject)
-
-        # FIXME bad representation, TODO figure out how to correctly
-        # represent operators inside/for quantities
-        yield (subject,
-               self._ns_rdf.value,
-               self._rdflib.Literal(str(self)))
+        bn_l = self._rdflib.BNode()
+        bn_r = self._rdflib.BNode()
+        yield subject, self._ns_rdf.type, self._ns_TEMP[self.tag]  # FIXME operator probably?
+        # FIXME TODO do we yield units here to match the json?
+        if self.left:
+            yield subject, self._ns_TEMP.left, bn_l
+            yield from self.left.asRdf(bn_l)
+        yield subject, self._ns_TEMP.right, bn_r
+        yield from self.right.asRdf(bn_r)
 
     @classmethod
     def fromJson(cls, json):
