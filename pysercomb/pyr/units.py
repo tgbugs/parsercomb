@@ -32,6 +32,7 @@ try:
     OntCuries({'unit':str(unit)})
     intf.ProtcurExpression._rdflib = rdflib
     intf.ProtcurExpression._ns_rdf = rdf
+    intf.ProtcurExpression._ns_TEMP = TEMP
 except ImportError:
     pass  # exception logged in rdftypes
 
