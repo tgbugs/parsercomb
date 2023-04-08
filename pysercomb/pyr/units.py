@@ -1766,7 +1766,7 @@ class Protc(ImplFactoryHelper, Interpreter):
     def aspect_vary(self, name, prov_key=None, prov=None, *body):
         _abody = [_ for _ in (prov_key, prov) if _ is not None]
         abody = _abody if prov_key == '#:prov' else []
-        vbody = _abody + body
+        vbody = _abody + list(body)
         return self.eval(
             ('aspect', name, *abody, ('vary', *vbody)))
 
