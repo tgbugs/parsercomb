@@ -2099,6 +2099,7 @@ class Aspect(intf.AJ):
         # share the length dimension and depend on context
         # l w h r d c etc. hypotenuse, opposite, adjascent (fun)
         'duration': '[time]',
+        'age': '[time]',
     }
     @property
     def dimensionality(self):
