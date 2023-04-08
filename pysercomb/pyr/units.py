@@ -1361,6 +1361,12 @@ class Interpreter:
             raise ValueError(tup) from e
 
         if (hasattr(function_or_macro, '_is_macro') and function_or_macro._is_macro):
+            # FIXME I think the way a real macro system works is to call eval on
+            # the output of the macro until it returns and no longer the macro branch
+            # obviously this yields less power than what I have right now which is
+            # closer to fexprs which allow for complete control over the next step
+            # i.e. you have to call eval manually if that is what you want to macro
+            # to do, or you can return the fully processed structures directly
             return function_or_macro(*rest)
         elif namespace.__class__ != self.__class__:
             # this is so that e.g. division can be defined internal to some namespace an not exported i.e. not explicilty prefixed
@@ -1713,6 +1719,7 @@ class Protc(ImplFactoryHelper, Interpreter):
     _Measure = None
     _Aspect = None
     _AspectTerminal = None
+    _Vary = None
     _ExecutorVerb = None
     _Term = None
     _FuzzyQuantity = None
@@ -1754,6 +1761,17 @@ class Protc(ImplFactoryHelper, Interpreter):
 
     def aspect(self, name, *body, prov=None):
         return self._Aspect(name, *body, prov=prov)
+
+    @macro
+    def aspect_vary(self, name, prov_key=None, prov=None, *body):
+        _abody = [_ for _ in (prov_key, prov) if _ is not None]
+        abody = _abody if prov_key == '#:prov' else []
+        vbody = _abody + body
+        return self.eval(
+            ('aspect', name, *abody, ('vary', *vbody)))
+
+    def vary(self, *body, prov=None):
+        return self._Vary(*body, prov=prov)
 
     #@macro
     def parameter(self, quantity, *rest, prov=None):  # FIXME and here we see yet another bug in my original implementation
@@ -2179,6 +2197,19 @@ class AspectTerminal(Aspect):
         return hash(self.name)
 
 
+class Vary(intf.AJ):
+
+    _type = 'protcur:vary'
+
+    def __init__(self, *body, prov=None):
+        self.prov = prov
+        self.body = body
+
+    @property
+    def _value(self):
+        return self.body  # FIXME TODO
+
+
 class ExecutorVerb(IdEqSortHelper, intf.AJ):
 
     _type = 'protcur:executor-verb'
@@ -2241,12 +2272,17 @@ class Term(intf.AJ):
             breakpoint()
         # XXX hits many cases where the curie does not map e.g. asp:
         l = self.label if self.label else None
-        if self.curie in self._term_cache:
-            log.log(9, f'cache hit for {self.curie}')
-            term = self._term_cache[self.curie]
+        if isinstance(self.curie, self._OntTerm):
+            curie = self.curie.curie
         else:
-            term = self._OntTerm(self.curie, label=l)
-            self._term_cache[self.curie] = term
+            curie = self.curie
+
+        if curie in self._term_cache:
+            log.log(9, f'cache hit for {curie}')
+            term = self._term_cache[curie]
+        else:
+            term = self._OntTerm(curie, label=l)
+            self._term_cache[curie] = term
 
         out = term.asDict()
         out['original'] = self.original
@@ -2382,6 +2418,7 @@ Protc.bindImpl(None,
                Measure,
                Aspect,
                AspectTerminal,
+               Vary,
                ExecutorVerb,
                SymbolicInput,
                SymbolicOutput,
