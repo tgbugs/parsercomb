@@ -147,8 +147,20 @@ class TestUnit(unittest.TestCase):
         assert unit('minute') == expect, 'minute did not parse to minutes'
         assert unit('min') == expect, 'min did not parse to minutes'
 
+    def test_celcius(self):
+        # ensure that we don't incorrectly allow celciu as a non-plural form
+        # less of an issue going this direction, but better to produce an error
+        # in cases where we need to check for rest
+        assert unit('degrees-celciu') == (True, ('param:unit', ('quote', 'degrees')), '-celciu'), 'bad parse'
+
     def test_inches(self):
         assert unit('in') == (True, ('param:unit', ('quote', 'inches')), ''), 'in did not parse to inches'
+        assert unit('INCH') == (True, ('param:unit', ('quote', 'inches')), ''), 'in did not parse to inches'
+        assert unit('inch') == (True, ('param:unit', ('quote', 'inches')), ''), 'in did not parse to inches'
+        assert unit('INCHES') == (True, ('param:unit', ('quote', 'inches')), ''), 'in did not parse to inches'
+        assert unit('inches') == (True, ('param:unit', ('quote', 'inches')), ''), 'in did not parse to inches'
+        assert unit('inchES') == (True, ('param:unit', ('quote', 'inches')), ''), 'in did not parse to inches'
+        assert unit('incHES') == (True, ('param:unit', ('quote', 'inches')), ''), 'in did not parse to inches'
 
     def test_ohms(self):
         assert unit('R') == (True, ('param:unit', ('quote', 'ohms')), ''), 'R did not parse to ohms'

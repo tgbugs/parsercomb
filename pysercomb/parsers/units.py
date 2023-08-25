@@ -26,24 +26,6 @@ def get_quoted_list(folderpath, filename):
     return out
 
 
-def fix_plurals(ql):
-    # XXX hack to deal with bad parsing of plurals
-    # this solution can induce nasty performance issues
-    # the correct solution is to build the parser so that
-    # the plural form is optional and there are shared prefixes
-    # this approach is quick and dirty so we don't worry about it
-
-    def fix(u):
-        if u == 'inches':
-            return 'inch'
-        else:
-            return u[:-1]
-
-    for k, v in ql.items():
-        more = tuple([(fix(u), u) for p, u in v if u.endswith('s') and len(u) > 2 and not u.endswith('celsius')])
-        ql[k] += more
-
-
 def op_order(return_value):
     order = 'plus-or-minus', 'range', '^', '/', '*', '+', '-'
     associative = '*', '+'
@@ -227,6 +209,39 @@ def hms(h, m, s):
     """ hours minutes seconds to seconds """
     return h * 60 * 60 + m * 60 + s
 
+def make_unit_funcs(  # FIXME find a way to encode these cases in data
+        inpt, lookuptable, eses=('inches',), keep=('celsius',)):
+
+    def lookup_function(v):
+        return RETURN(lookuptable[v])
+
+    for token in sorted(set(inpt), key=lambda a: (-len(a), a)):  # sort to simulate right associativity (ie da recognized even if d a token)
+        if len(token) > 2:
+            # only downcase if the length of the token has more than 2 chars
+            # avoids issues with Bq, Gy, dB, Hz, Pa, etc.
+            if token[-1] == 's' and not [k for k in keep if token.endswith(k)]:
+                if token in eses:
+                    _token = token[:-2]
+                    suffix = 'es'
+                else:
+                    _token = token[:-1]
+                    suffix = 's'
+
+                # this works as expected, however there is the usual warning
+                # that a mispelling like Secondes will parse as Second with rest = es
+                # but that will usually be detected due to rest not None
+                yield BIND(
+                    RETVAL(SKIP(
+                        OR(COMP(_token), DOWNCASE(COMP)(_token)),
+                        AT_MOST_ONE(DOWNCASE(COMP)(suffix))),
+                           token),
+                    lookup_function)
+            else:
+                yield BIND(OR(COMP(token), DOWNCASE(COMP)(token)), lookup_function)
+        else:
+            yield BIND(COMP(token), lookup_function)
+
+
 # units
 def make_unit_parser(units_path=None, dicts=None):
     if units_path is None and dicts is None:
@@ -236,8 +251,6 @@ def make_unit_parser(units_path=None, dicts=None):
 
     gs = globals()
     for dict_ in dicts:
-        if [k for k in ['units_si', 'units_extra', 'units_imp'] if k in dict_]:
-            fix_plurals(dict_)
         gs.update(dict_)
 
     _silookup = {k: ('quote', v)
@@ -256,12 +269,12 @@ def make_unit_parser(units_path=None, dicts=None):
     siprefix = OR(*make_funcs(chain(coln(0, prefixes_si),
                                     coln(1, prefixes_si)),
                               _siplookup))
-    siunit = OR(*make_funcs(chain(coln(0, units_si + units_extra), # need both here to avoid collisions in unit_atom slower but worth it?
-                                  coln(1, units_si + units_extra)),
-                            _silookup))
-    impunit = OR(*make_funcs(chain(coln(0, units_imp + units_dimensionless),
-                                   coln(1, units_imp + units_dimensionless)),
-                             _implookup))
+    siunit = OR(*make_unit_funcs(chain(coln(0, units_si + units_extra), # need both here to avoid collisions in unit_atom slower but worth it?
+                                       coln(1, units_si + units_extra)),
+                                 _silookup))
+    impunit = OR(*make_unit_funcs(chain(coln(0, units_imp + units_dimensionless),
+                                        coln(1, units_imp + units_dimensionless)),
+                                  _implookup))
 
     def parenthized(func): return COMPOSE(LEXEME(COMP('(')), SKIP(func, LEXEME(COMP(')'))))
     def parOR(func): return OR(func, parenthized(func))
@@ -539,6 +552,7 @@ def parse_for_tests(parameter_expression=None):
              'TRUE', 'fAlsE', '#t', '#f',
              '10 \u00B5L', '10 \u03BCL',  # micro issues
              '1 s-1', '1 h-1', '1 mg kg-1 h-1',
+             '42 Days',
             )
 
     prefix_expr_tests = ('<1', '~3.5 - 6 Mohms',)
@@ -611,7 +625,7 @@ def main():
     start = time()
     timeit()
     stop = time()
-    print('BAD TIME', stop - start)
+    log.debug(('BAD TIME', stop - start))
     print_issues = {i:h for i, h in enumerate(pid)} 
     # pprint.pprint(print_issues)  # this works correctly
 
@@ -623,11 +637,10 @@ def main():
     test_expression = [parameter_expression(t) for t in tests + prefix_expr_tests + weirds]
     test_expression2 = '\n'.join(sorted((f"'{t+q:<25} -> {parameter_expression(t)[1]}"
                                          for t in tests + weirds), key=lambda v: v[25:]))
-    print(test_expression2)
+    log.debug(test_expression2)
     test_fails = [parameter_expression(t) for t in tests]
     if __name__ == '__main__':
-        from IPython import embed
-        embed()
+        breakpoint()
 
 
 if __name__ == '__main__':

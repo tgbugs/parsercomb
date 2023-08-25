@@ -13,6 +13,7 @@ __all__ = [
     'BOX',
     'COMP',
     'COMPOSE',
+    'DOWNCASE',
     'END',
     'EOF',
     'EXACTLY_ONE',
@@ -261,9 +262,13 @@ def BREAK(func):  # break on entry
 
 def comp(p, val, lv):
     if p:
-        v = p[:lv]  # warning: this will produce order dependencies when you spec the parser
+        if len(p) < lv:
+            return False, None, p
+        else:
+            v = p[:lv]  # warning: this will produce order dependencies when you spec the parser
     else:
         return False, None, p  # we are at the end
+
     return v == val, v, p[lv:]
 
 def comp1(p, val):
@@ -304,6 +309,16 @@ def COMP(val):
         comp_.__name__ = 'COMP_' + val
         return comp_
 
+def DOWNCASE(func):
+    def wrap(val):
+        _wrapped = func(val)
+        def downcase(p):
+            return _wrapped(p.lower())
+
+        return downcase
+
+    return wrap
+
 def EOF(p):
     if p == '':
         return True, '', ''
@@ -335,9 +350,9 @@ def RETVAL(func, val):
     return COMPOSE(func, RETURN(val))
 
 def make_funcs(inpt, lookuptable):
+    def lookup_function(v):
+        return RETURN(lookuptable[v])
     for token in sorted(set(inpt), key=lambda a: (-len(a), a)):  # sort to simulate right associativity (ie da recognized even if d a token)
-        def lookup_function(v):
-            return RETURN(lookuptable[v])
         yield BIND(COMP(token), lookup_function)
 
 def jstring(v): return RETURN(''.join(v))
