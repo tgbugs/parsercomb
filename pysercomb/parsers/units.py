@@ -377,44 +377,50 @@ def make_unit_parser(units_path=None, dicts=None):
                      BIND(_dur_digits, lambda v: RETURN(int(v))))
     _, _dur_date, _, _dur_time = (
         (_dur_P,),
-        (_dur_Y, _dur_M, _dur_D),
+        (_dur_Y, _dur_Mon, _dur_D, _dur_W),
         (_dur_T,),
-        (_dur_H, _dur_M, _dur_S)
+        (_dur_H, _dur_Min, _dur_S)
     ) = [[RETVAL(COMP(l), val) for l, val in zip(ls, vals)]
-         for ls, vals in zip(('P', 'YMD', 'T', 'HMS'),
+         for ls, vals in zip(('P', 'YMDW', 'T', 'HMS'),
                        ((None,),
-                        [('quote', u) for u in ('years', 'months', 'days')],
+                        [('quote', u) for u in ('years', 'months', 'days', 'weeks')],
                         (None,),
                         [('quote', u) for u in ('hours', 'minutes', 'seconds')]))]
-    # technically these could be parsed in any order because we know the type of
-    # the individual duration, however there are some weird impliciations about
-    # the ordering, depending on which section you count first
-    #  012   01   02   12   0   1   2
-    # 'YMD' 'YM' 'YD' 'MD' 'Y' 'M' 'D'
-    # 'HMS' 'HM' 'HS' 'MS' 'H' 'M' 'S'
-    _inds = [[0, 1, 2], [0, 1], [0, 2], [1 ,2], [0], [1], [2]]
-    combs = _c_date, _c_time = [[[param('quantity')
-                                  (ANDTHEN(_dur_number,
-                                           param('unit')
-                                           (BIND(elems[index], RETBOX))))
-                                  for index in indexes]
-                                 for indexes in _inds]
-                                for elems in (_dur_date, _dur_time)]
-    _p_date, _p_time = [OR(*[JOINT(*parts, join=False)
-                             for parts in comb])
-                        for comb in combs]
-    _tp_time = COMPOSE(_dur_T, _p_time)
-    _p_datetime = JOINT(_p_date, _tp_time, join=True)
+
+    def _fdur(thing):
+        return AT_MOST_ONE(param('quantity')(ANDTHEN(_dur_number, param('unit')(BIND(thing, RETBOX)))))
+
+    def _cull(thing):
+        return RETURN(tuple(t for t in thing if not (isinstance(t, tuple) and not t)))
+
+    _isod = BIND(
+        JOINT(
+            _fdur(_dur_Y),
+            _fdur(_dur_Mon),
+            _fdur(_dur_W),
+            _fdur(_dur_D),
+            join=False),
+        _cull)
+    _isot = COMPOSE(
+        _dur_T,
+        BIND(
+            JOINT(
+                _fdur(_dur_H),
+                _fdur(_dur_Min),
+                _fdur(_dur_S),
+                join=False),
+            _cull))
+
     iso8601duration = COMPOSE(
         _dur_P,
         # these sort into different functions because durations that
         # include dates are invariants while time alone is a parameter
         # this helps with equality checking among other things
-        OR(BIND(_tp_time,
+        OR(BIND(_isot,
                 lambda v: RETURN(('iso8601-duration-time', *v))),
-           BIND(_p_datetime,
+           BIND(JOINT(_isod, _isot, join=True),
                 lambda v: RETURN(('iso8601-duration-datetime', *v))),
-           BIND(_p_date,
+           BIND(_isod,
                 lambda v: RETURN(('iso8601-duration-date', *v))),))
 
     pH = RETVAL(COMP('pH'), BOX("'pH"))
@@ -528,6 +534,8 @@ def make_unit_parser(units_path=None, dicts=None):
                   'expression': expression,
                   'num_thing': num_thing,
                   'dimensions_no_math': dimensions_no_math,  # TODO
+                  'isod': _isod,
+                  'isot': _isot,
                   'iso8601duration': iso8601duration,
                   'siprefix': siprefix,
                  }

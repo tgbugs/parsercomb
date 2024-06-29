@@ -298,9 +298,11 @@ class TestUnits(unittest.TestCase):
         assert g == ge and l == le
 
     def test_iso8601(self):
-        s = 'P1YT1S'
-        oyos = pyru.UnitsParser(s).asPython()
-        assert oyos._value == s, f'{oyos._value} != {s}'
+        ss = 'P1YT1S', 'P3W1D', 'P30W1D', 'P1.5Y10.2W1.2D'
+        for s in ss:
+            oyos = pyru.UnitsParser(s).asPython()
+            print(oyos)
+            assert oyos._value == s, f'{oyos._value} != {s}'
 
     def test_not_water_density(self):
         t = pyru.UnitsParser('5g/5ml')

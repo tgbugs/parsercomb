@@ -62,6 +62,8 @@ class TestForms(unittest.TestCase):
                        ('param:quantity', 1.5, ('param:unit', ('quote', 'months'))),)),
             ('P1,5M', ('iso8601-duration-date',
                        ('param:quantity', 1.5, ('param:unit', ('quote', 'months'))),)),
+            ('P1W', ('iso8601-duration-date',
+                     ('param:quantity', 1, ('param:unit', ('quote', 'weeks'))),)),
             ('P1M', ('iso8601-duration-date',
                      ('param:quantity', 1, ('param:unit', ('quote', 'months'))),)),
             ('PT1M', ('iso8601-duration-time',
@@ -79,16 +81,28 @@ class TestForms(unittest.TestCase):
             ('P10DT12H', ('iso8601-duration-datetime',
                           ('param:quantity', 10, ('param:unit', ('quote', 'days'))),
                           ('param:quantity', 12, ('param:unit', ('quote', 'hours'))),)),
-            ('P4Y3M10DT12H1M2S', ('iso8601-duration-datetime',
-                                  ('param:quantity', 4, ('param:unit', ('quote', 'years'))),
-                                  ('param:quantity', 3, ('param:unit', ('quote', 'months'))),
-                                  ('param:quantity', 10, ('param:unit', ('quote', 'days'))),
-                                  ('param:quantity', 12, ('param:unit', ('quote', 'hours'))),
-                                  ('param:quantity', 1, ('param:unit', ('quote', 'minutes'))),
-                                  ('param:quantity', 2, ('param:unit', ('quote', 'seconds'))),)),
+            ('P4Y3M1W10DT12H1M2S',
+             ('iso8601-duration-datetime',
+              ('param:quantity', 4, ('param:unit', ('quote', 'years'))),
+              ('param:quantity', 3, ('param:unit', ('quote', 'months'))),
+              ('param:quantity', 1, ('param:unit', ('quote', 'weeks'))),
+              ('param:quantity', 10, ('param:unit', ('quote', 'days'))),
+              ('param:quantity', 12, ('param:unit', ('quote', 'hours'))),
+              ('param:quantity', 1, ('param:unit', ('quote', 'minutes'))),
+              ('param:quantity', 2, ('param:unit', ('quote', 'seconds'))),)),
         )
         bads = []
         for s, r in strings:
+            #p_d, *t = s.split('T')
+            #p, d = p_d.split('P')
+            #if d:
+                #od = isod(d)
+                #print('watod:', od)
+            #if t:
+                #t = t[0]
+                #ot = isot(t)
+                #print('watot', ot)
+
             ok, res, rest = iso8601duration(s)
             if r != res:
                 print('exp:', r)

@@ -1156,6 +1156,7 @@ class Iso8601Duration(intf.AJ):
 
     _order = ('year',
               'month',
+              'week',
               'day',
               'hour',
               'minute',
@@ -1163,6 +1164,7 @@ class Iso8601Duration(intf.AJ):
 
     _isoletter = {'year': 'Y',
                   'month': 'M',
+                  'week': 'W',
                   'day': 'D',
                   'hour': 'H',
                   'minute': 'M',
