@@ -1008,7 +1008,13 @@ class Dimensions(Oper):
         self.quants = quants
 
     def __str__(self):
-        return f' {self.op} '.join(v.format_babel('~', locale='en_US') for v in self.quants)
+        # of course locale is utterly broken in pint >= 0.24 so we have to
+        # include the encoding as well because it now uses python locale
+        # internally, which itself is even more insane due to the utter
+        # brokeness of local in general ...
+        return f' {self.op} '.join(
+            v.format_babel('~', locale='en_US.UTF-8')
+            for v in self.quants)
 
     def __repr__(self):
         return str(self)
@@ -1170,9 +1176,33 @@ class Iso8601Duration(intf.AJ):
                   'minute': 'M',
                   'second': 'S',}
 
+    dimensionality = pint.util.UnitsContainer({'[time]': 1.0})
+
     def __init__(self, *quantities, prov='TODO'):
         self.quantities = quantities
         self.prov = prov
+        #self.dimensionality = quantities[0].dimensionality
+
+    def __hash__(self):
+        return hash(self.quantities)
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.quantities == other.quantities
+
+    def __gt__(self, other):
+        if type(self) == type(other):
+            return self.quantities > other.quantities
+        else:
+            return True
+
+    def __lt__(self, other):
+        return not self >= other
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __ge__(self, other):
+        return self > other or self == other
 
     def _value_qs(self):
         def key(q):

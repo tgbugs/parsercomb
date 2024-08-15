@@ -304,6 +304,31 @@ class TestUnits(unittest.TestCase):
             print(oyos)
             assert oyos._value == s, f'{oyos._value} != {s}'
 
+    def test_invariant_order(self):
+        a = '1 day'
+        b = '2 days'
+        au = pyru.UnitsParser(a).asPython()
+        bu = pyru.UnitsParser(b).asPython()
+        iau = pyru.Invariant(au)
+        bau = pyru.Invariant(bu)
+        iau < bau
+        au > bu
+        au < bu
+
+    def test_iso8601_order(self):
+        # iso8601 durations have a dimension but they do not have a concrete value
+        # they can be given a default value for sorting by assigning assumed values
+        # to Y M D etc, or by assuming that both durations start at the same moment
+        a = 'P1Y1M1D'
+        b = 'P1Y1M'
+        au = pyru.UnitsParser(a).asPython()
+        bu = pyru.UnitsParser(b).asPython()
+        iau = pyru.Invariant(au)
+        bau = pyru.Invariant(bu)
+        iau < bau
+        au > bu
+        au < bu
+
     def test_not_water_density(self):
         t = pyru.UnitsParser('5g/5ml')
         p = t.asPython()
