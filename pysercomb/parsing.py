@@ -23,6 +23,7 @@ __all__ = [
     'MANY1',
     'NOT',
     'OR',
+    'AND',
     'RETURN',
     'RETURNBOX',
     'RETVAL',
@@ -103,6 +104,40 @@ def OR(*funcs):
                 return success, v, rest
         return False, None, p  # explicit values since different funcs will have parsed to different depths
     return or_
+
+
+def AND(*funcs):
+    # while not efficient, the ability to
+    # state that a single stretch of input should
+    # match all specified funcs is useful for communicating expected behavior
+
+    # the result of the parse will be the output of the first
+    # function specified
+    def and_(p):
+        lr = None
+        for f in funcs:
+            success, v, rest = f(p)
+            if not success:
+                return False, None, p
+            elif lr is None:
+                out = success, v, rest
+                lr = len(rest)  # FIXME
+            else:
+                # all must consume at least the same amount of input as the first function
+                # otherwise we cannot veryify the unchecked part of the input conforms
+                nlr = len(rest)
+                if nlr > lr:
+                    # if new rest is longer than old rest too little was consumed
+                    # subsequent matches must be at least as long as the first match
+                    return False, None, p
+
+                # TODO do we enforce exact match here or allow lookahead?
+                assert len(rest) == lr, f'{len(rest)} != {lr} {v} {out[1]}'
+
+        return out
+
+    return and_
+
 
 def TIMES(func, min_, max_=None, fail=True):
     if not max_ and not min_:

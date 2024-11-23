@@ -49,6 +49,21 @@ class TestForms(unittest.TestCase):
         assert (parameter_expression('1:99:01')[1]
                 == ('param:quantity', 9541, ('param:unit', ('quote', 'seconds')))), 'duration failed'
 
+    def test_capital_P(self):
+        assert parameter_expression('P') == (True, ('param:parse-failure', 'P'), '')
+
+    def test_nodupe(self):
+        for res, ok in (
+                (parameter_expression('P1D2Y'), False),
+                (parameter_expression('P3Y4D'), True),
+                (parameter_expression('P5Y6D7Y'), False),
+                (parameter_expression('P12Y6D13Y14D'), False),
+                (parameter_expression('P8D9D'), False),
+                (parameter_expression('P10Y11Y'), False),
+        ):
+            success, v, rest = res
+            assert (not rest and ok) or (not ok and rest), f'oops {ok} {rest}'
+
     def test_iso8601duration(self):
         # when you stop to think about it, it is kind of silly to report a
         # duration that crosses the months/days boundary due to the fact that
@@ -110,6 +125,15 @@ class TestForms(unittest.TestCase):
                 bads.append(s)
 
         assert not bads, bads
+
+    def test_postnatal_day_range(self):
+        # this works when iso8601 duration doesn't gobble
+        assert (
+            parameter_expression('P14-15')[1]
+            ==
+            ('param:quantity', ('param:expr', ('range', 14, 15)),
+             ('param:prefix-unit',
+              ('quote', 'postnatal-days')))), 'postnatal_day failed'
 
     def test_postnatal_day_vs_iso8601duration(self):
         assert (parameter_expression('P14')[1]

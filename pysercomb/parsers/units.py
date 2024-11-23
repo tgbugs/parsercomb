@@ -388,27 +388,64 @@ def make_unit_parser(units_path=None, dicts=None):
                         [('quote', u) for u in ('hours', 'minutes', 'seconds')]))]
 
     def _fdur(thing):
+        # using AT_MOST_ONE instead of EXACTLY_ONE here breaks
+        # post-natal-day because it allows all to be empty :/
+        return EXACTLY_ONE(param('quantity')(ANDTHEN(_dur_number, param('unit')(BIND(thing, RETBOX)))))
+
+    def _fdura(thing):
         return AT_MOST_ONE(param('quantity')(ANDTHEN(_dur_number, param('unit')(BIND(thing, RETBOX)))))
 
     def _cull(thing):
         return RETURN(tuple(t for t in thing if not (isinstance(t, tuple) and not t)))
 
+    def fail_on_empty(v):
+        if not v:
+            return (lambda p: (False, None, p))
+        else:
+            return (lambda p: (True, None, p))
+
+    # JOINT cannot be used here with AT_MOST_ONE in _fdur because then a bare P will match
+    # to keep the implementation simple the parser does not check the ordering of YMWD
+    # and also currently allows multiple instances of each to occure, otherwise we would
+    # have to write out the full combinatorics in the parser to account for all cases
     _isod = BIND(
-        JOINT(
-            _fdur(_dur_Y),
-            _fdur(_dur_Mon),
-            _fdur(_dur_W),
-            _fdur(_dur_D),
-            join=False),
+        AND(
+            MANY1(OR(
+                _fdur(_dur_Y),
+                _fdur(_dur_Mon),
+                _fdur(_dur_W),
+                _fdur(_dur_D),
+            )),
+            BIND(
+                JOINT(
+                    _fdura(_dur_Y),
+                    _fdura(_dur_Mon),
+                    _fdura(_dur_W),
+                    _fdura(_dur_D),
+                    join=False),
+                fail_on_empty,
+            ),
+        ),
         _cull)
+
     _isot = COMPOSE(
         _dur_T,
         BIND(
-            JOINT(
-                _fdur(_dur_H),
-                _fdur(_dur_Min),
-                _fdur(_dur_S),
-                join=False),
+            AND(
+                MANY1(OR(
+                    _fdur(_dur_H),
+                    _fdur(_dur_Min),
+                    _fdur(_dur_S),
+                )),
+                BIND(
+                    JOINT(
+                        _fdura(_dur_H),
+                        _fdura(_dur_Min),
+                        _fdura(_dur_S),
+                        join=False),
+                    fail_on_empty,
+                ),
+            ),
             _cull))
 
     iso8601duration = COMPOSE(
