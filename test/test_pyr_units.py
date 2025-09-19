@@ -274,6 +274,9 @@ class TestUnits(unittest.TestCase):
         s = list(r.asRdf(rdflib.BNode()))
         w = pyru.UnitsParser('9-14 weeks').asPython()
         x = list(w.asRdf(rdflib.BNode()))
+        y = pyru.UnitsParser('99 mmHg').asPython()
+        z = list(y.asRdf(rdflib.BNode()))
+        y.to(list(y.units.compatible_units())[0])
         #breakpoint()
 
     def test_brokens(self):
