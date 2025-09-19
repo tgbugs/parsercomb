@@ -386,6 +386,12 @@ class TestPickle(unittest.TestCase):
         t = pyru.UnitsParser('4 meter ** 13')
         self._doit(t)
 
+    def test_exponent(self):
+        t = pyru.UnitsParser('1 mm^2')
+        self._doit(t)
+        t = pyru.UnitsParser('1 mm2')
+        self._doit(t)
+
 
 class TestCopy(TestPickle):
     def _doit(self, thing):

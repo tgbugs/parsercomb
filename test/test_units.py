@@ -145,6 +145,11 @@ class TestForms(unittest.TestCase):
                     ('param:quantity', 14,
                      ('param:unit', ('quote', 'days'))))), 'iso8601duration failed'
 
+    def test_pH(self):
+        assert (parameter_expression('pH 7.2')[1]
+                == ('param:quantity', 7.2,
+                    ('param:prefix-unit', ('quote', 'pH')))), 'ph failed'
+
 
 class TestUnit(unittest.TestCase):
 

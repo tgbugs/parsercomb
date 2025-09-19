@@ -460,7 +460,7 @@ def make_unit_parser(units_path=None, dicts=None):
            BIND(_isod,
                 lambda v: RETURN(('iso8601-duration-date', *v))),))
 
-    pH = RETVAL(COMP('pH'), BOX("'pH"))
+    pH = RETVAL(COMP('pH'), BOX(('quote', 'pH')))
     post_natal_day = RETVAL(COMP('P'), BOX(('quote', 'postnatal-days')))  # FIXME note that in our unit hierarchy this is a subclass of days
     _fold_prefix = END(by, num)
     fold_prefix = RETVAL(_fold_prefix, BOX(('quote', 'fold')))
