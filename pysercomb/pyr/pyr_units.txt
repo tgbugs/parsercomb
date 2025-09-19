@@ -16,7 +16,12 @@ osmole = [substance_particles] = Osm  # this is quite complicated to calculate f
 osmolarity = Osm / liter
 equivalents = [] = equiv  # there is a definition for this, just missing atm
 @alias molar = molarity
-@alias millimeter_Hg = millimeters_hg
+
+# mmHg changed in 0.25 so to make this file work for < 25
+# and >= 25 we have to define conventional mercury density
+conventional_mercury_density = 13595.1 kg/m^3 = ρHg
+meter_Hg = meter * conventional_mercury_density * g_0 = mHg = m_Hg
+millimeter_Hg = meter_Hg / 1000 = millimeters_hg = mm_Hg
 
 # https://en.wikipedia.org/wiki/French_catheter_scale  Fg = diameter mm * 3
 # Fr defaults to Franklin which aka statcoulomb
